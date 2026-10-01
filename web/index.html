@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xihack · 探索谜境</title>
+  <style>
+    body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 760px; margin: 32px auto; padding: 0 16px; color: #222; }
+    h1 { font-size: 22px; }
+    .row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    select, input { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; }
+    input { flex: 1; min-width: 200px; }
+    button { padding: 8px 12px; border: 0; border-radius: 6px; background: #2b5bd3; color: #fff; cursor: pointer; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 14px; margin: 8px 0; }
+    .clue { display: inline-block; margin: 4px 6px 4px 0; padding: 6px 12px; border-radius: 16px; border: 1px solid #ccc; font-size: 14px; }
+    .clue.locked { color: #bbb; background: #f5f5f5; }
+    .clue.unlocked { border-color: #2b5bd3; color: #2b5bd3; cursor: pointer; }
+    .clue.current { background: #2b5bd3; color: #fff; }
+    .tier { font-size: 12px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+    .tier.FACT { background: #e3f4e3; }
+    .tier.THEORY { background: #fff3d6; }
+    .tier.FICTION, .tier.MODEL_GUESS { background: #fee; }
+    .muted { color: #888; font-size: 13px; }
+    .err { color: #c0392b; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>x</body>ihack 探索谜境</h1>
+  <div class="row">
+    <select id="scene"></select>
+    <button onclick="startScene()">进入场景</button>
+  </div>
+  <div id="sceneMeta"></div>
+  <div id="clues"></div>
+  <div class="row">
+    <button id="btnPlan" onclick="act({action:'plan'})" disabled>规划下一步</button>
+    <button id="btnOpinions" onclick="act({action:'opinions'})" disabled>多方观点</button>
+    <button id="btnClose" onclick="act({action:'close'})" disabled>结案</button>
+  </div>
+  <div class="row">
+    <input id="hypo" placeholder="提出你的假设,如: 它是礼仪用器" />
+    <button id="btnHypo" onclick="hypothesize()" disabled>验证假设</button>
+  </div>
+  <div id="log"></div>
+  <h3>证据池</h3>
+  <div id="pool"></div>
+  <div id="report"></div>
+
+<script>
+let sid = null;
+let currentClue = null;
+
+const $ = (id) => document.getElementById(id);
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+  const resp = await fetch(path, opt);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.detail || resp.statusText);
+  return data;
+}
+
+function add(html, cls) {
+  const div = document.createElement("div");
+  div.className = "card" + (cls ? " " + cls : "");
+  div.innerHTML = html;
+  $("log").prepend(div);
+}
+
+function tierChip(t) { return `<span class="tier ${t}">${t}</span>`; }
+
+function render(out) {
+  // 线索迷雾地图
+  $("clues").innerHTML = (out.clues || []).map(c => {
+    const cls = c.unlocked ? (c.id === out.current_clue_id ? "clue unlocked current" : "clue unlocked") : "clue locked";
+    const label = c.unlocked ? `${c.tag} · ${c.title}` : "??? 迷雾中";
+    const click = c.unlocked ? `onclick="investigate('${c.id}')"` : "";
+    return `<span class="${cls}" ${click} title="${c.unlocked ? c.question : '需要先解锁前置线索'}">${label}</span>`;
+  }).join("");
+
+  // 证据池
+  $("pool").innerHTML = (out.pool || []).map(st =>
+    `<div class="card">${st.text}${tierChip(st.tier)}` +
+    `<div class="muted">引用: ${st.claim_ids.join(", ") || "无"}${st.dispute_note ? " | 争议: " + st.dispute_note : ""}</div></div>`
+  ).join("");
+
+  if (out.report) $("report").innerHTML = `<h3>结案报告</h3><div class="card"><pre>${out.report}</pre></div>`;
+
+  const closed = out.state === "closed";
+  $("btnPlan").disabled = closed;
+  $("btnOpinions").disabled = closed;
+  $("btnClose").disabled = closed;
+  $("btnHypo").disabled = closed;
+  currentClue = out.current_clue_id;
+}
+
+function renderResult(result) {
+  if (!result) return;
+  if (result.clue_id && result.question) add(`<b>${result.tag} · ${result.title}</b><br>${result.question}`);
+  if (result.statements) result.statements.forEach(st =>
+    add(`${st.text}${tierChip(st.tier)}${st.downgraded ? '<span class="err"> ⚠引用被降级</span>' : ""}${st.trap ? "" : ""}`)
+  );
+  if (result.verdict) add(`<b>假设评判: ${result.verdict}</b>`);
+  if (result.trap) add(result.refused ? "⚠ 这是一条传闻线索:知识库中没有可靠依据,已拒绝下结论。" : "⚠ 传闻线索但模型给出了结论,请警惕!");
+  if (result.message) add(result.message);
+}
+
+async function loadScenes() {
+  const scenes = await api("/scenes");
+  $("scene").innerHTML = scenes.map(s => `<option value="${s.id}">${s.title}</option>`).join("");
+}
+
+async function startScene() {
+  $("log").innerHTML = ""; $("pool").innerHTML = ""; $("report").innerHTML = "";
+  const out = await api("/sessions", { scene_id: $("scene").value });
+  sid = out.session_id;
+  const scene = await api(`/scenes/${$("scene").value}`);
+  $("sceneMeta").innerHTML = `<div class="card"><b>异常现象:</b> ${scene.anomaly || "—"}<br><b>根问题:</b> ${scene.root_question || scene.puzzle || "—"}</div>`;
+  render(out);
+  add("场景已开启。点「规划下一步」让系统推荐线索,或直接点击已解锁的线索进行调查。");
+}
+
+async function act(body) {
+  if (!sid) return;
+  try {
+    const out = await api(`/sessions/${sid}/actions`, body);
+    renderResult(out.result);
+    render(out);
+  } catch (e) { add(`<span class="err">${e.message}</span>`); }
+}
+
+function investigate(clueId) { act({ action: "investigate", clue_id: clueId }); }
+function hypothesize() {
+  const text = $("hypo").value.trim();
+  if (text) act({ action: "hypothesize", text });
+}
+
+loadScenes().catch(e => add(`<span class="err">加载场景失败: ${e.message}</span>`));
+</script>
+</body>
+</html>
