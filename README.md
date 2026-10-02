@@ -1,5 +1,13 @@
 # xihack
 
+Windows 本地连接招聘数据库 `xks`：见 [操作步骤](docs/DATABASE_LOCAL.md)。
+使用 `python scripts/local_backend.py` 隐藏输入数据库密码；`/health/database` 仅检查连接和表结构。
+
+招聘闭环真实数据库读写：见 [接口与运行说明](docs/HIRING_PERSISTENCE.md)。
+模型与 LangGraph 接入边界：见 [队长集成说明](docs/HIRING_INTEGRATION.md)。
+`python scripts/local_backend.py --recruiting-demo` 启用明确模拟 AI 的持久化接口；
+`python scripts/recruiting_demo.py` 创建一个独立模拟职位并跑完审批、重算与重启恢复验证。
+
 探索式历史知识库服务(FastAPI)。当前为阶段 0:通用框架 + 占位数据(与秦代无关,由数据同学在 `data/sample_kb.json` 维护)。
 
 ## 快速开始

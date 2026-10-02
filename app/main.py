@@ -8,9 +8,14 @@ load_dotenv()  # 尽早加载 .env,供 kb/llm 读取
 
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+import psycopg  # noqa: E402
 
 from app import explore, kb as kb_mod  # noqa: E402
 from app import llm  # noqa: E402
+from app import database  # noqa: E402
+from app.recruiting_api import router as recruiting_router  # noqa: E402
+from hirespec_loop.errors import HireSpecError  # noqa: E402
 from app.schemas import (  # noqa: E402
     ActionIn,
     CreateSessionIn,
@@ -21,6 +26,30 @@ from app.schemas import (  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 
 app = FastAPI(title="xihack", version="0.2.0")
+app.include_router(recruiting_router)
+
+
+@app.exception_handler(database.DatabaseCheckError)
+async def database_config_error(request, exc):
+    return JSONResponse(status_code=503, content={"detail": {"code": exc.code, "message": exc.message}})
+
+
+@app.exception_handler(HireSpecError)
+async def hiring_error(request, exc):
+    code = exc.code
+    status = 404 if code == "NOT_FOUND" else 503 if code == "MODEL_TASK_ERROR" else 409 if code in {"STORE_CONFLICT", "STALE_PROPOSAL", "JOB_BUSY", "APPROVAL_ERROR"} else 422
+    detail = {"code": code, "message": str(exc)}
+    if getattr(exc, "feedback_id", None):
+        detail["feedback_id"] = exc.feedback_id
+    return JSONResponse(status_code=status, content={"detail": detail})
+
+
+@app.exception_handler(psycopg.Error)
+async def hiring_database_error(request, exc):
+    # Never expose DSNs, passwords, resume text or raw PostgreSQL error details.
+    return JSONResponse(status_code=503, content={"detail": {
+        "code": "DATABASE_TASK_FAILED", "message": "数据库操作失败，未提交的事务已回滚；请读取职位状态确认已完成的步骤后重试。",
+    }})
 
 
 @app.get("/health")
@@ -29,6 +58,22 @@ def health() -> dict:
         "status": "ok",
         "llm_configured": llm.is_configured(),
         "replay_only": llm.replay_only(),
+    }
+
+
+@app.get("/health/database")
+def database_health() -> dict:
+    try:
+        report = database.inspect_database()
+    except database.DatabaseCheckError as exc:
+        raise HTTPException(
+            status_code=503, detail={"code": exc.code, "message": exc.message}
+        ) from None
+    # HTTP 健康接口只返回检查结果，完整表名及账号只在本地检查终端显示。
+    return {
+        "status": report["status"], "database": report["database"],
+        "read_only": report["read_only"],
+        "expected_tables_present": report["expected_tables_present"],
     }
 
 
