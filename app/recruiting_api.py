@@ -62,6 +62,13 @@ class CandidateIn(Contract):
     name: Annotated[Text, Field(max_length=200)]
     resume_text: Annotated[Text, Field(max_length=100000)]
     source_file: Annotated[Text, Field(max_length=500)] | None = None
+    file_key: Annotated[Text, Field(max_length=1000)] | None = None
+    original_filename: Annotated[Text, Field(max_length=500)] | None = None
+    mime_type: Annotated[Text, Field(max_length=200)] | None = None
+    file_size: Annotated[int, Field(ge=0, le=50_000_000)] | None = None
+    parsed_data: dict = Field(default_factory=dict)
+    parse_status: Literal["NOT_REQUESTED", "PENDING", "PROCESSING", "COMPLETED", "FAILED"] = "NOT_REQUESTED"
+    parser_version: Annotated[Text, Field(max_length=100)] | None = None
 
 
 class InitialApprovalIn(Contract):
@@ -118,7 +125,13 @@ async def manual_draft(job_id: UUID, body: SpecDraft, user: Actor, loop: Loop):
 
 @router.post("/jobs/{job_id}/candidates", status_code=201)
 def candidate(job_id: UUID, body: CandidateIn, user: Actor):
-    return RecruitingStore().add_candidate(str(job_id), user, body.name, body.resume_text, body.source_file)
+    return RecruitingStore().add_candidate(
+            str(job_id), user, body.name, body.resume_text, body.source_file,
+            file_key=body.file_key, original_filename=body.original_filename,
+            mime_type=body.mime_type, file_size=body.file_size,
+            parsed_data=body.parsed_data, parse_status=body.parse_status,
+            parser_version=body.parser_version,
+        )
 
 
 @router.post("/jobs/{job_id}/spec/approve")

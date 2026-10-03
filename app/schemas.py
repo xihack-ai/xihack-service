@@ -1,150 +1,112 @@
-"""数据模型与 API 契约(队友并行开发的依据,字段先定死)。
+"""API 契约(前后端并行开发依据)。"""
 
-数据侧: sources / claims / entities / relations / scenes (data/*.json)
-tier 四级: FACT(史实) > THEORY(学说) > FICTION(虚构) > MODEL_GUESS(模型猜测)
-"""
+from typing import Any, Literal
 
-from typing import Literal
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from pydantic import BaseModel, Field
-
-Tier = Literal["FACT", "THEORY", "FICTION", "MODEL_GUESS"]
-Mode = Literal["mystery", "theater", "sandbox"]
-Action = Literal["plan", "investigate", "opinions", "hypothesize", "close"]
-
-TIER_RANK: dict[str, int] = {"FACT": 0, "THEORY": 1, "FICTION": 2, "MODEL_GUESS": 3}
+Verdict = Literal["推荐", "待核实", "不推荐", "否决"]
+CriterionType = Literal["MUST_HAVE", "NICE_TO_HAVE", "VETO"]
 
 
-# ---------------- 知识库数据模型 ----------------
-
-class Source(BaseModel):
-    id: str
-    title: str
-    type: str
-    url: str | None = None
-    license: str | None = None
-
-
-class Claim(BaseModel):
-    id: str
-    text: str
-    tier: Tier
-    source_id: str
-    locator: str | None = None
-    entity_ids: list[str] = []
-    tags: list[str] = []
-    dispute_note: str | None = None  # THEORY 必填
-
-
-class Entity(BaseModel):
-    id: str
-    type: str
+class CandidateIn(BaseModel):
     name: str
-    summary: str = ""
-    claim_ids: list[str] = []
+    resume_text: str = Field(min_length=1)
 
 
-class Relation(BaseModel):
-    src: str
-    dst: str
-    label: str
-    claim_ids: list[str] = Field(default_factory=list)
-
-
-class Clue(BaseModel):
-    id: str
-    tag: str
+class JobIn(BaseModel):
     title: str
-    question: str                      # 展示给用户的探索问题
-    claim_ids: list[str] = []
-    requires: list[str] = []           # 前置线索 id(迷雾闸门)
-    kind: Literal["evidence", "theory", "trap"] = "evidence"
-    topics: list[str] = []
-    order: int = 0                     # LLM 选择失败时的回退顺序
+    requirement: str = Field(min_length=1)
+    candidates: list[CandidateIn] = []
+    require_spec_confirmation: bool = False
 
 
-class Hotspot(BaseModel):
-    """迷雾地图上的兴趣点(剧场/沙盒模式用)。"""
-
-    id: str
-    label: str
-    entity_ids: list[str] = []
-    claim_ids: list[str] = []
+class FeedbackIn(BaseModel):
+    text: str = Field(min_length=1)
+    candidate_id: str | None = None       # 可针对某人,也可整体
+    created_by: str | None = None
 
 
-class Scene(BaseModel):
-    id: str
-    mode: Mode
-    title: str
-    intro: str
-    anomaly: str | None = None         # 开场异常现象(可选)
-    root_question: str | None = None   # 根问题(可选)
-    entity_ids: list[str] = []
-    puzzle: str | None = None
-    clues: list[Clue] = []
-    hotspots: list[Hotspot] = []
-    genres: list[str] = []             # 剧场模式的故事类型选项
-    start_entity: str | None = None    # 沙盒模式入口实体
+class CriterionIn(BaseModel):
+    id: str | None = None
+    type: CriterionType = "NICE_TO_HAVE"
+    text: str = Field(min_length=1)
+    weight: int = Field(default=2, ge=1, le=3)
+
+    @field_validator("text", "id")
+    @classmethod
+    def nonblank(cls, value):
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise ValueError("标准文本和 ID 不得为空")
+        return value
 
 
-# ---------------- 校验结果 ----------------
+class SpecConfirmIn(BaseModel):
+    criteria: list[CriterionIn] = Field(min_length=1)
 
-class StatementIn(BaseModel):
-    text: str
-    claim_ids: list[str] = []
-
-
-class StatementOut(BaseModel):
-    text: str
-    claim_ids: list[str] = []          # 仅保留真实存在的
-    invalid_claim_ids: list[str] = []  # 被丢弃的编造 id
-    tier: Tier                         # 后端根据引用计算
-    downgraded: bool = False
-    dispute_note: str | None = None    # 含 THEORY 时透出争议说明
+    @model_validator(mode="after")
+    def unique_ids(self):
+        ids = [c.id or f"c{i+1}" for i, c in enumerate(self.criteria)]
+        if len(ids) != len(set(ids)):
+            raise ValueError("标准 ID 必须唯一（含自动生成的 ID）")
+        return self
 
 
-# ---------------- 会话 / API ----------------
-
-class SceneSummary(BaseModel):
-    id: str
-    mode: Mode
-    title: str
-    intro: str
-
-
-class CreateSessionIn(BaseModel):
-    scene_id: str
+class WorkflowOut(BaseModel):
+    next_nodes: list[str] = []
+    completed_nodes: list[str] = []
+    waiting_for: Literal["spec_confirmation", "human_approval"] | None = None
+    model_mode: Literal["offline_fallback", "live"]
+    checkpointer: Literal["memory", "postgres"]
+    history: list[dict[str, Any]] = []
 
 
-class ActionIn(BaseModel):
-    action: Action
-    clue_id: str | None = None
-    text: str | None = None            # hypothesize 的假设内容
+class ApprovalIn(BaseModel):
+    """Accept / Edit / Reject。
+
+    - accept: 采纳 AI 提案
+    - edit:   用 criteria 字段给出的完整标准集替换(忽略提案的 add/remove)
+    - reject: 驳回
+    兼容旧客户端:只传 approved=true/false 时等价于 accept / reject。
+    """
+    action: Literal["accept", "edit", "reject"] | None = None
+    approved: bool = True
+    criteria: list[CriterionIn] | None = None
+    note: str = ""
+    decided_by: str | None = None
 
 
-class ClueNode(BaseModel):
-    id: str
-    tag: str
-    title: str
-    question: str
-    kind: Literal["evidence", "theory", "trap"]
-    unlocked: bool
-    requires: list[str] = []
+class EvaluationOut(BaseModel):
+    candidate_id: str
+    name: str = ""
+    scores: dict[str, int | None]         # 2=满足 0=有反证 None=无证据
+    verdict: Verdict
+    tradeoff: dict[str, Any] = {}         # {strengths:[], gaps:[], veto_hit:[]}
 
 
-class PoolItem(BaseModel):
-    text: str
-    tier: Tier
-    claim_ids: list[str] = []
-    dispute_note: str | None = None
+class CalibrationOut(BaseModel):
+    job_id: str
+    job_title: str = ""
+    status: str                            # EVALUATED / AWAITING_APPROVAL / AWAITING_SPEC_CONFIRMATION
+    spec_version: int
+    criteria: list[dict[str, Any]]
+    evidence: list[dict[str, Any]]
+    evaluations: list[EvaluationOut]       # 已按 档位 → 加权覆盖度 排序
+    tiers: dict[str, int] = {}             # 各档人数
+    risk_flags: list[str] = []
+    change_proposal: dict[str, Any] | None = None
+    approval: dict[str, Any] | None = None
+    feedback_notes: list[str] = []
+    workflow: WorkflowOut
+    clarified_requirement: str | None = None
+    clarification_questions: list[str] | None = None
 
 
-class SessionOut(BaseModel):
-    session_id: str
-    scene_id: str
-    state: str                         # investigating | reasoning | closed
-    current_clue_id: str | None = None
-    clues: list[ClueNode] = []         # 迷雾地图:已解锁/未解锁
-    pool: list[PoolItem] = []          # 证据池
-    result: dict | None = None         # 本次动作的产出(LLM 内容+校验)
-    report: str | None = None          # close 后的结案报告
+class HistoryOut(BaseModel):
+    """决策日志页:可追溯的标准演进与审批记录。"""
+    job_id: str
+    spec_versions: list[dict[str, Any]] = []
+    feedback: list[dict[str, Any]] = []
+    proposals: list[dict[str, Any]] = []
+    audit: list[dict[str, Any]] = []

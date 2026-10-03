@@ -1,6 +1,19 @@
-"""测试全部走离线模式:不发起任何网络请求,LLM 一律回退到确定性 stub。"""
+"""测试全离线:LLM 走确定性回退,PG 环境变量清空,图用内存 checkpointer。"""
 
 import os
 
 os.environ["REPLAY_ONLY"] = "1"
 os.environ.pop("LLM_API_KEY", None)
+for _k in ("DATABASE_URL", "PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"):
+    os.environ.pop(_k, None)
+
+import pytest  # noqa: E402
+
+from app.workflow import graph as wf  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _fresh_graph():
+    wf.reset_for_tests()
+    yield
+    wf.reset_for_tests()

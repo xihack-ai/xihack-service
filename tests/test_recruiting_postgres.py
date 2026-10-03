@@ -54,6 +54,40 @@ def feedback(s, reason=OWNERSHIP_FEEDBACK, version=1):
     return asyncio.run(s["loop"].feedback(s["job_id"], s["actor"], s["candidates"]["P01"]["id"], "NO", reason, version))
 
 
+def test_candidate_file_metadata_and_completed_parse_are_persisted(scenario):
+    s = scenario
+    candidate = s["store"].add_candidate(
+        s["job_id"], s["actor"], "文件候选人", "unique parsed resume",
+        source_file="candidate.pdf",
+        file_key="resumes/candidate.pdf",
+        original_filename="candidate.pdf",
+        mime_type="application/pdf",
+        file_size=0,
+        parsed_data={"skills": ["Python"]},
+        parse_status="COMPLETED",
+        parser_version="parser-v1",
+    )
+    assert candidate["file_key"] == "resumes/candidate.pdf"
+    assert candidate["parsed_data"] == {"skills": ["Python"]}
+    assert candidate["parse_status"] == "COMPLETED"
+    assert candidate["parsed_at"] is not None
+    with s["store"].connect(read_only=True) as conn:
+        row = conn.execute(
+            "SELECT source_file,file_key,original_filename,mime_type,file_size,parsed_data,parse_status,parser_version,parsed_at "
+            "FROM candidates WHERE id=%s",
+            (candidate["id"],),
+        ).fetchone()
+    assert row["source_file"] == "candidate.pdf"
+    assert row["file_key"] == "resumes/candidate.pdf"
+    assert row["original_filename"] == "candidate.pdf"
+    assert row["mime_type"] == "application/pdf"
+    assert row["file_size"] == 0
+    assert row["parsed_data"] == {"skills": ["Python"]}
+    assert row["parse_status"] == "COMPLETED"
+    assert row["parser_version"] == "parser-v1"
+    assert row["parsed_at"] is not None
+
+
 def test_durable_approval_restart_and_partial_cache(scenario):
     s = scenario
     p = feedback(s)
@@ -101,7 +135,7 @@ def test_edit_is_only_draft_and_sensitive_edit_is_blocked(scenario):
     p = feedback(s)
     change = ProposedChange(operation=ChangeOperation.UPDATE, criterion_id="C02", after=ownership_body())
     result = asyncio.run(s["loop"].edit(s["job_id"], s["actor"], p["proposal"]["proposal_id"], (change,)))
-    assert result["approval_status"] == "PENDING"
+    assert result["approval_status"] == "PENDING_APPROVAL"
     assert s["store"].get_job(s["job_id"], s["actor"])["visible_spec_version"] == 1
     bad = ownership_body().model_copy(update={"definition": "女性不适合这个岗位"})
     with pytest.raises(PolicyError):

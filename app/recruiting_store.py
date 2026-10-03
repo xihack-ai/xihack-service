@@ -1,4 +1,4 @@
-"""Existing eight-table PostgreSQL contract. No migrations or shared-job mutations.
+"""Eight-table PostgreSQL contract with resume storage metadata.
 
 criteria stays an array. Extra workflow/cache metadata is namespaced in audit_events.
 Every write locks the job, verifies its owner and uses parameterized SQL.
@@ -25,12 +25,12 @@ from hirespec_loop.models import (
 CONTRACT = "hirespec-pg-v1"
 PREFIX = "HIRESPEC_"
 PROPOSAL_STATUS = {
-    ProposalStatus.PENDING_APPROVAL: "PENDING", ProposalStatus.BLOCKED: "BLOCKED",
-    ProposalStatus.NO_CHANGE: "EMPTY", ProposalStatus.NEEDS_CLARIFICATION: "EMPTY",
+    ProposalStatus.PENDING_APPROVAL: "PENDING_APPROVAL", ProposalStatus.BLOCKED: "BLOCKED",
+    ProposalStatus.NO_CHANGE: "EMPTY", ProposalStatus.NEEDS_CLARIFICATION: "NEEDS_CLARIFICATION",
 }
 TIER_VERDICT = {
-    "QUALIFIED": "推荐", "NEEDS_VERIFICATION": "证据不足",
-    "REQUIREMENT_CONFLICT": "待定", "VETO_TRIGGERED": "待定",
+    "QUALIFIED": "推荐", "NEEDS_VERIFICATION": "待核实",
+    "REQUIREMENT_CONFLICT": "不推荐", "VETO_TRIGGERED": "否决",
 }
 
 
@@ -230,15 +230,21 @@ class RecruitingStore:
                 raise StoreError("简历内容哈希不一致，不能复用评估。")
         return rows
 
-    def add_candidate(self, job_id, actor, name, resume_text, source_file=None):
+    def add_candidate(self, job_id, actor, name, resume_text, source_file=None, *, file_key=None,
+                      original_filename=None, mime_type=None, file_size=None, parsed_data=None,
+                      parse_status="NOT_REQUESTED", parser_version=None):
         digest = text_hash(resume_text)
         with self.write_job(job_id, actor) as (conn, job):
             existing = conn.execute("SELECT * FROM candidates WHERE job_id=%s AND resume_hash=%s", (job_id, digest)).fetchone()
             if existing:
                 return {**wire(existing), "reused": True}
             row = conn.execute(
-                "INSERT INTO candidates(job_id,name,resume_text,resume_hash,source_file) VALUES (%s,%s,%s,%s,%s) RETURNING *",
-                (job_id, name, resume_text, digest, source_file),
+                "INSERT INTO candidates(job_id,name,resume_text,resume_hash,source_file,file_key,"
+                "original_filename,mime_type,file_size,parsed_data,parse_status,parser_version,parsed_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+                (job_id, name, resume_text, digest, source_file, file_key, original_filename,
+                 mime_type, file_size, Jsonb(parsed_data or {}), parse_status, parser_version,
+                 datetime.now(timezone.utc) if parse_status == "COMPLETED" else None),
             ).fetchone()
             self.audit(conn, job_id, actor, "CANDIDATE_ADDED", {"candidate_id": str(row["id"]), "resume_hash": digest})
             conn.execute("UPDATE jobs SET status='RUNNING',updated_at=now() WHERE id=%s", (job_id,))
@@ -319,7 +325,7 @@ class RecruitingStore:
         })
         db_status = "FAILED" if status == "FAILED" else "RUNNING"
         if status == "READY":
-            pending = conn.execute("SELECT 1 FROM change_proposals WHERE job_id=%s AND status='PENDING'", (job_id,)).fetchone()
+            pending = conn.execute("SELECT 1 FROM change_proposals WHERE job_id=%s AND status='PENDING_APPROVAL'", (job_id,)).fetchone()
             db_status = "AWAITING_APPROVAL" if pending else "EVALUATED"
         conn.execute("UPDATE jobs SET status=%s,updated_at=now() WHERE id=%s", (db_status, job_id))
 
@@ -391,7 +397,7 @@ class RecruitingStore:
             existing = conn.execute("SELECT * FROM change_proposals WHERE job_id=%s AND feedback_id=%s", (job_id, proposal.feedback_id)).fetchone()
             if existing:
                 return self.proposal_view(existing)
-            if proposal.status == ProposalStatus.PENDING_APPROVAL and conn.execute("SELECT 1 FROM change_proposals WHERE job_id=%s AND status='PENDING'", (job_id,)).fetchone():
+            if proposal.status == ProposalStatus.PENDING_APPROVAL and conn.execute("SELECT 1 FROM change_proposals WHERE job_id=%s AND status='PENDING_APPROVAL'", (job_id,)).fetchone():
                 raise StoreError("已有一条待审批提议，请先接受或拒绝；本次反馈已保存，可稍后重试生成。")
             row = conn.execute(
                 "INSERT INTO change_proposals(id,job_id,feedback_id,from_version,proposal,risk_flags,status) "
@@ -420,7 +426,7 @@ class RecruitingStore:
         return wire({
             "proposal": proposal, "approval_status": row["status"],
             "impact": content.get("impact"), "receipt": content.get("receipt"),
-            "can_approve": row["status"] == "PENDING" and proposal.status == ProposalStatus.PENDING_APPROVAL,
+            "can_approve": row["status"] == "PENDING_APPROVAL" and proposal.status == ProposalStatus.PENDING_APPROVAL,
         })
 
     def proposal_context(self, job_id, actor, proposal_id):
@@ -434,7 +440,7 @@ class RecruitingStore:
     @staticmethod
     def pending(row, current):
         proposal = RecruitingStore.effective(row)
-        if row["status"] != "PENDING" or proposal.status != ProposalStatus.PENDING_APPROVAL:
+        if row["status"] != "PENDING_APPROVAL" or proposal.status != ProposalStatus.PENDING_APPROVAL:
             raise ApprovalError("仅待审批且通过安全检查的提议可以接受、编辑或拒绝。")
         if row["from_version"] != current.version:
             raise StaleProposalError("提议基础版本已过期，请重新生成。")
@@ -486,7 +492,7 @@ class RecruitingStore:
                 return ApprovalReceipt.model_validate(row["final_proposal"]["receipt"])
             # Rejecting a stale pending proposal is allowed, so the pending slot can be cleared.
             proposal = self.effective(row)
-            if row["status"] != "PENDING" or proposal.status != ProposalStatus.PENDING_APPROVAL:
+            if row["status"] != "PENDING_APPROVAL" or proposal.status != ProposalStatus.PENDING_APPROVAL:
                 raise ApprovalError("该提议不可拒绝；已接受、阻止或待澄清的提议不能重复决策。")
             receipt = ApprovalReceipt(proposal_id=proposal_id, action="REJECTED", reviewer_id=actor, result_version=job["current_spec_version"])
             content = row["final_proposal"] or row["proposal"]

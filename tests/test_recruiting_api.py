@@ -3,10 +3,12 @@
 from fastapi.testclient import TestClient
 import psycopg
 import pytest
+from pydantic import ValidationError
 
 from app.main import app
 from app import recruiting_api
 from app.database import DatabaseCheckError
+from app.recruiting_api import CandidateIn
 from app.recruiting_store import PROPOSAL_STATUS, TIER_VERDICT
 from hirespec_loop.models import ProposalStatus
 
@@ -68,10 +70,56 @@ def test_database_failures_are_redacted(monkeypatch, error, code):
     assert "private-password" not in response.text
 
 
-def test_ambiguous_feedback_has_no_approvable_database_status():
-    assert PROPOSAL_STATUS[ProposalStatus.NEEDS_CLARIFICATION] == "EMPTY"
-    assert PROPOSAL_STATUS[ProposalStatus.BLOCKED] == "BLOCKED"
-    assert TIER_VERDICT["VETO_TRIGGERED"] == "待定"
+def test_proposal_and_tier_enums_map_to_database_and_verdict_contracts():
+    assert PROPOSAL_STATUS == {
+        ProposalStatus.PENDING_APPROVAL: "PENDING_APPROVAL",
+        ProposalStatus.BLOCKED: "BLOCKED",
+        ProposalStatus.NO_CHANGE: "EMPTY",
+        ProposalStatus.NEEDS_CLARIFICATION: "NEEDS_CLARIFICATION",
+    }
+    assert TIER_VERDICT == {
+        "QUALIFIED": "推荐",
+        "NEEDS_VERIFICATION": "待核实",
+        "REQUIREMENT_CONFLICT": "不推荐",
+        "VETO_TRIGGERED": "否决",
+    }
+
+
+def test_candidate_in_accepts_resume_file_metadata_and_parser_fields():
+    candidate = CandidateIn(
+        name="候选人",
+        resume_text="Python backend experience",
+        file_key="resumes/candidate.pdf",
+        original_filename="candidate.pdf",
+        mime_type="application/pdf",
+        file_size=0,
+        parsed_data={"skills": ["Python"]},
+        parse_status="COMPLETED",
+        parser_version="parser-v1",
+    )
+    assert candidate.model_dump() == {
+        "name": "候选人",
+        "resume_text": "Python backend experience",
+        "source_file": None,
+        "file_key": "resumes/candidate.pdf",
+        "original_filename": "candidate.pdf",
+        "mime_type": "application/pdf",
+        "file_size": 0,
+        "parsed_data": {"skills": ["Python"]},
+        "parse_status": "COMPLETED",
+        "parser_version": "parser-v1",
+    }
+
+
+@pytest.mark.parametrize("field,value", [
+    ("file_size", -1),
+    ("parse_status", "UNKNOWN"),
+    ("parsed_data", ["not", "an", "object"]),
+])
+def test_candidate_in_rejects_invalid_file_or_parser_fields(field, value):
+    payload = {"name": "候选人", "resume_text": "resume", field: value}
+    with pytest.raises(ValidationError):
+        CandidateIn(**payload)
 
 
 def test_recruitment_routes_are_registered_before_static_mount():

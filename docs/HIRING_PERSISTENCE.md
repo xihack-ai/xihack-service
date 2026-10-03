@@ -50,7 +50,7 @@ cd "C:\Users\lenovo\Documents\Codex\2026-09-29\new-chat\xihack-service"
 | POST `/jobs/{job_id}/clarify` | `{answers:{}}`，返回最多 3 个问题 |
 | POST `/jobs/{job_id}/drafts` | `{answers:{...}}`，生成并保存草稿 |
 | PUT `/jobs/{job_id}/draft` | 完整 SpecDraft；安全复检后保存新草稿，不发布 |
-| POST `/jobs/{job_id}/candidates` | `{name,resume_text,source_file?}`，保存不可变文本简历；相同文本幂等复用 |
+| POST `/jobs/{job_id}/candidates` | `{name,resume_text,source_file?,file_key?,original_filename?,mime_type?,file_size?,parsed_data?,parse_status?,parser_version?}`，保存不可变简历文本及可选文件/解析元数据；相同文本幂等复用 |
 | POST `/jobs/{job_id}/spec/approve` | `{draft_id}`，批准 v1 并评估已导入候选人 |
 | POST `/jobs/{job_id}/feedback` | `{candidate_id,spec_version,decision:"YES"或"NO",reason}` |
 | POST `/jobs/{job_id}/feedback/{feedback_id}/propose` | 模型任务失败后，以已保存反馈重试生成提议 |
@@ -90,7 +90,7 @@ cd "C:\Users\lenovo\Documents\Codex\2026-09-29\new-chat\xihack-service"
 |---|---|
 | `jobs` | 原始需求、当前已批准版本、任务状态 |
 | `spec_versions` | 不可覆盖的正式版本；`criteria` 保持标准数组；来源提议 ID |
-| `candidates` | UUID、姓名、完整简历文本及 SHA-256；同职位相同文本去重 |
+| `candidates` | UUID、姓名、完整简历文本及 SHA-256；可选 `file_key`、原始文件名、MIME 类型、文件大小、解析 JSON、解析状态、解析器版本和 `parsed_at`；同职位相同文本去重。当前仅持久化已提供的元数据，不包含文件上传或解析器 |
 | `evaluations` | 一候选人 × 一版本一行；`scores` 是带契约版本的逐标准记录 JSON，**没有总分** |
 | `feedback` | 原始理由、候选人、版本、创建人；YES/NO 决策保存在对应审计事件 |
 | `change_proposals` | 原始 AI 提议、编辑草稿/最终审批、风险状态、审批人和时间 |
@@ -99,14 +99,14 @@ cd "C:\Users\lenovo\Documents\Codex\2026-09-29\new-chat\xihack-service"
 
 额外工作流元数据采用 `contract: "hirespec-pg-v1"` 标记，不更改原表约束。前端以招聘 API 契约读取，不直接猜测旧系统 JSON 的含义。
 
-`evaluations.verdict` 按现有约束映射为「推荐 / 待定 / 证据不足」。更细的 `QUALIFIED / NEEDS_VERIFICATION / REQUIREMENT_CONFLICT / VETO_TRIGGERED` 档位保留在 `scores.tier`，单条 `SATISFIED / NOT_SATISFIED / NO_EVIDENCE` 保留在 records 中；不能仅用顶层中文状态恢复所有语义。
+`evaluations.verdict` 按现有约束映射为「推荐 / 待核实 / 不推荐 / 否决」：`QUALIFIED` → 推荐，`NEEDS_VERIFICATION` → 待核实，`REQUIREMENT_CONFLICT` → 不推荐，`VETO_TRIGGERED` → 否决。原始档位保留在 `scores.tier`，单条 `SATISFIED / NOT_SATISFIED / NO_EVIDENCE` 保留在 records 中；不能仅用顶层中文状态恢复所有语义。
 
 提议 AI 状态与审批状态分开：
 
 | AI 状态 | 数据库状态 | 能否批准 |
 |---|---|---|
-| PENDING_APPROVAL | PENDING | 是，仍须提交前复检 |
-| NEEDS_CLARIFICATION | EMPTY | 否；保留追问，不变成可批准提议 |
+| PENDING_APPROVAL | PENDING_APPROVAL | 是，仍须提交前复检 |
+| NEEDS_CLARIFICATION | NEEDS_CLARIFICATION | 否；保留追问，不变成可批准提议 |
 | NO_CHANGE | EMPTY | 否 |
 | BLOCKED | BLOCKED | 否 |
 | 已接受 / 已拒绝 | APPROVED / REJECTED | 再次相同决策返回原收据；相反决策拒绝 |
@@ -137,6 +137,6 @@ cd "C:\Users\lenovo\Documents\Codex\2026-09-29\new-chat\xihack-service"
 
 真实数据库测试在 `tests/test_recruiting_postgres.py`，必须显式设置 `HIRESPEC_RUN_DB_TESTS=1` 并提供运行时数据库密码。每项测试创建独立 UUID 职位，并只清理自己创建且归属校验通过的测试职位；不按模糊名称批量删除。
 
-当前完成持久化 MVP。尚未完成真实模型适配、前端页面联调、生产账号权限、连接池、后台任务调度、同一候选人的多版简历管理和部署。当前文本简历记录不可变，新上传视为独立候选人，不覆盖旧简历证据。
+当前完成持久化 MVP。尚未完成真实模型适配、文件上传、简历解析器、前端页面联调、生产账号权限、连接池、后台任务调度、同一候选人的多版简历管理和部署。当前简历记录不可变；提供文件或解析字段时仅保存对应元数据，新上传仍视为独立候选人，不覆盖旧简历证据。
 
 事务与锁的行为参照 [PostgreSQL 官方锁文档](https://www.postgresql.org/docs/17/explicit-locking.html) 和 [Psycopg 官方事务文档](https://www.psycopg.org/psycopg3/docs/basic/transactions.html)。

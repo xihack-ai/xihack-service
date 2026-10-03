@@ -1,4 +1,10 @@
-# xihack
+# xihack-service
+
+招聘标准校准服务:FastAPI 管业务,LangGraph 管有状态、可暂停恢复的校准工作流。
+
+```text
+Next.js → FastAPI → LangGraph → {LLM, PostgreSQL}
+```
 
 Windows 本地连接招聘数据库 `xks`：见 [操作步骤](docs/DATABASE_LOCAL.md)。
 使用 `python scripts/local_backend.py` 隐藏输入数据库密码；`/health/database` 仅检查连接和表结构。
@@ -8,93 +14,65 @@ Windows 本地连接招聘数据库 `xks`：见 [操作步骤](docs/DATABASE_LOC
 `python scripts/local_backend.py --recruiting-demo` 启用明确模拟 AI 的持久化接口；
 `python scripts/recruiting_demo.py` 创建一个独立模拟职位并跑完审批、重算与重启恢复验证。
 
-探索式历史知识库服务(FastAPI)。当前为阶段 0:通用框架 + 占位数据(与秦代无关,由数据同学在 `data/sample_kb.json` 维护)。
-
 ## 快速开始
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate   # .venv 不提交,每人本地自建
-pip install -e .
-
-cp .env.example .env      # 填入 LLM_API_KEY;不填走离线 stub
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
-- 前端: http://127.0.0.1:8000/ ;API 文档: http://127.0.0.1:8000/docs
-- **给前端同学的契约: `docs/api_contract.md`(含示例请求/响应 JSON)**
+- API 文档: http://127.0.0.1:8000/docs
+- 不配 `LLM_API_KEY` / 设 `REPLAY_ONLY=1` 时走确定性回退,断网可演示
+- 不配 PG 时业务数据在进程内存,checkpointer 用内存版;配了 `DATABASE_URL` 自动切 `PostgresSaver`(跨进程可恢复)
 
-## 三种模式
+## 校准工作流(LangGraph)
 
-| mode | 说明 | 状态 |
+```text
+START ─(新职位)→ clarify → generate_spec ─(require_spec_confirmation=true)→ spec_confirmation(interrupt 暂停)
+                                     │                       └(/spec/confirm 确认或编辑后)→ extract_evidence
+                                     └(默认旧行为)→ extract_evidence
+        extract_evidence → validate_evidence → evaluate → END
+      └(HR反馈)→ interpret_feedback → bias_risk_check ─(命中红线)→ END
+                                        └→ propose_change → human_approval(interrupt 暂停)
+                                                └(批准)→ selective_reeval(只重跑受影响候选人)→ END
+```
+
+原则：LLM 只做理解与措辞；证据必须是简历原文（代码校验）、打分/红线/变更应用全部确定性执行，编造引用一律丢弃。
+未确认前绝不抽证据/评估；人工编辑（首次确认、审批 Edit）的文本/类型/唯一 ID/偏见风险校验全部在
+`Command(resume=...)` 之前完成，非法编辑直接 422 且 checkpoint 不受污染。
+
+## 接口
+
+| 方法 | 路径 | 说明 |
 |---|---|---|
-| `mystery` 谜境 | 线索迷雾 → 证据池 → 假设评判 → 结案报告 | 已实现 |
-| `theater` 剧场 | genres + hotspots 出发,阶段 2 实装 | 建会话返回 501 |
-| `sandbox` 沙盒 | start_entity 起点自由游走,阶段 2 实装 | 建会话返回 501 |
+| GET | `/health` | 健康检查（含 storage 模式） |
+| POST | `/jobs` | 建职位+候选人并启动校准；`require_spec_confirmation=true` 时停在首次标准确认（默认 false=旧行为一次跑完） |
+| GET | `/calibrations/{job_id}` | 查看当前标准/评估/状态/workflow 元信息 |
+| POST | `/calibrations/{job_id}/spec/confirm` | 首次标准确认：body `{"criteria": CriterionIn[]}`（完整标准集，可编辑）；确认后 save_spec → 抽证 → 评估 |
+| POST | `/calibrations/{job_id}/feedback` | 提交 HR 反馈 → 产出标准变更提案，停在待审批；停在 `AWAITING_SPEC_CONFIRMATION` 时返回 409 |
+| POST | `/calibrations/{job_id}/approval` | Accept / Edit / Reject 恢复审批 → 选择性重评；Edit 的风险/格式校验在 resume 前，非法返回 422 |
 
-## tier 与校验模型
+`status`：`AWAITING_SPEC_CONFIRMATION`（等确认初始标准）/ `EVALUATED`（已评估）/ `AWAITING_APPROVAL`（等人点批准，响应带 `change_proposal`）。
 
-tier 四级:`FACT > THEORY > FICTION > MODEL_GUESS`。
+响应中的 `workflow` 字段全部来自真实 checkpoint 状态（`get_state().next` + 节点轨迹，不虚构）：
+`{next_nodes, completed_nodes, waiting_for: "spec_confirmation"|"human_approval"|null,
+model_mode: "offline_fallback"|"live", checkpointer: "memory"|"postgres", history}`。
+`workflow.history` 是当前图状态里的节点操作记录（初始/反馈/审批，随 checkpoint 持久化）；
+`/calibrations/{id}/history` 端点仍是数据库决策日志，不配 PG 依旧 503，两者互不影响。
+同一 job 的变更接口串行：并发提交直接 409 `JOB_BUSY`（非阻塞，不排队）。
 
-模型必须输出结构化 JSON `{"statements":[{"text","claim_ids"}]}`;后端校验:
+同 ID 标准的编辑语义：改文本 → 旧证据作废重抽；只改类型/权重 → 不重抽，仅重新分档聚合；
+删除的标准真正从标准集移除，且新增标准不复用已删除的 ID。
 
-- 编造的 claim_id 丢弃,该条 tier 降一级(FACT→THEORY→FICTION→MODEL_GUESS);
-- tier = 有效引用中最差一档,含 THEORY 即显示 THEORY 并透出 `dispute_note`;
-- 无任何有效引用 → `MODEL_GUESS`;
-- 模型不按 JSON 输出时,回退旧正则 `[claim-id]` 抽取路径(`validate_answer_text`)。
-
-## 谜境状态机
-
-```
-state: investigating --hypothesize--> reasoning --close--> closed
-action: plan | investigate | opinions | hypothesize | close
-```
-
-线索带 `requires` 前置闸门(迷雾地图解锁逻辑),启动校验保证依赖图**无环且有起点**;
-`plan` 由 LLM 在可及线索中选择,代码校验 id,失败回退 `order` 最小。
-
-## 数据工具(给数据同学)
+## 测试
 
 ```bash
-python scripts/check_kb.py data/sample_kb.json          # 校验,错误指到具体 id
-python scripts/csv_to_kb.py csv_dir/ -o data/kb.json    # 7 张表 CSV → kb.json(utf-8-sig,多值 `;` 分隔)
+pytest        # 全离线:LLM 回退 + 内存 checkpointer
 ```
 
-CSV 约定见 `scripts/csv_to_kb.py` 文件头:文件名 `<表名>.csv`(sources/claims/entities/relations/scenes/clues/hotspots),
-`clues/hotspots` 用 `scene_id` 列挂到场景;合并后自动校验,不通过不写回。
+## 环境变量
 
-**陷阱题不进知识库**,统一放 `eval/run_eval.py` 的 `TRAP_QUESTIONS`。
-
-## 测试与评测
-
-```bash
-pip install -e ".[dev]"
-pytest                    # 34 项:闸门/编造 id/非法动作/THEORY 标签/环检测/完整流程/陷阱拒答
-python eval/run_eval.py   # 指标:引用覆盖率/争议识别率/recall@k/陷阱拒答率,不达标退出码 1
-```
-
-## 离线与断网演练
-
-- 无 `LLM_API_KEY`:全部动作走确定性 stub,前端/评测可完整运行;
-- `REPLAY_ONLY=1`:禁止网络,只吃 `.cache/llm_cache.json` 缓存(演示前预跑填满);
-- 真实调用带失败重试与磁盘缓存。
-
-## 目录结构
-
-```
-xihack-service/
-├── app/
-│   ├── main.py          # FastAPI 入口,路由
-│   ├── schemas.py       # pydantic 契约(数据模型 + API)
-│   ├── kb.py            # 新格式加载 + 启动校验(含环检测) + 二字词检索
-│   ├── llm.py           # chat/chat_json + 缓存 + 重试 + REPLAY_ONLY
-│   ├── explore.py       # 谜境会话引擎(状态机/闸门/证据池)
-│   └── validate.py      # 结构化校验 + tier 降级(旧正则路径保留)
-├── data/sample_kb.json  # 占位数据(数据同学维护)
-├── docs/api_contract.md # 接口契约(前端同学)
-├── eval/run_eval.py     # 评测:覆盖率/争议/recall@k/陷阱拒答(陷阱题在此)
-├── scripts/             # check_kb.py / csv_to_kb.py(数据同学用)
-├── tests/               # pytest(全程离线)
-├── web/index.html       # 静态前端(场景/迷雾线索/证据池/报告)
-├── .env.example
-└── pyproject.toml
-```
+- `DATABASE_URL` 或 PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE(可选)
+- `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` / `REPLAY_ONLY`(可选)
+- `CORS_ORIGINS`:逗号分隔,默认允许 `localhost` 和 `127.0.0.1` 的 3000、3001、3002 端口；其他来源需显式配置。修改配置后需要重启后端；设置此变量会覆盖默认来源。
