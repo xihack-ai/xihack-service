@@ -2,6 +2,7 @@
 
 前端以 `HIRESPEC_STATIC_EXPORT=1 NEXT_PUBLIC_API_BASE=/api npm run build` 构建。
 Nginx 托管导出的 `out/` 并把 `/api/` 转发到仅监听本机 8010 的 FastAPI。
+若额外设置 `HIRESPEC_BUILD_DIR`，静态导出会写入该自定义目录，而非仓库原有的 `out/`。打包前应检查实际导出目录中 `workspace.html` 的修改时间与 SHA-256；发布后再比较 Nginx 响应的 SHA-256，避免部署陈旧页面。
 数据库继续仅监听服务器 127.0.0.1:5432，不对公网开放。
 
 目录约定：`/opt/hirespec/releases/<release>/backend` 为后端，`web` 为前端导出，
