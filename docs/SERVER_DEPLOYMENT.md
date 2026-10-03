@@ -31,12 +31,14 @@ journalctl -u hirespec -n 50 --no-pager
 
 ## 发布版本与备份
 
-当前发布：`/opt/hirespec/releases/release-20261003-1791004141`。
+当前发布：`/opt/hirespec/releases/release-20261003-578a88d-da5169f`（后端 `578a88d`，前端 `da5169f`）。
 `/opt/hirespec/current` 为发布链接，backend 是清洁源码安装，web 是静态生产构建。
-基础版本：后端 d8af22a、前端 ac95db9，附带本次真实模型凭据/缓存部署修正；发布 manifest 记录逐文件哈希。
+旧发布 `/opt/hirespec/releases/release-20261003-1791004141` 保留供回滚；新发布 manifest 记录两个仓库的提交和上传包 SHA-256。
 
-部署前备份：`/opt/hirespec/backups/xks_before_release-20261003-1791004141.dump`，已验证可读取归档目录。未删除数据库或重建容器。
+更新前备份：`/opt/hirespec/backups/xks_before_release-20261003-578a88d-da5169f.dump`，已验证可读取归档目录。未删除数据库或重建容器。
 升级时上传新 release，先检查健康与调用再切换链接；保留旧 release 供回滚。服务器发布目录不包含 `.git`，仅在本地 pull 不会自动更新服务器。
+
+2026-10-03 更新验收：新 Python 环境 `pip check` 通过；静态网页和同源 `/api/health` 在演示口令认证后均返回 200；后端健康报告 PostgreSQL 正常；强制 LIVE 的 DeepSeek 小请求成功。新分档规则对所有必须项均无证据的样本返回“不推荐”，逐条分数仍为无证据。`hirespec.service` 运行稳定且未自动重启。
 
 ## 服务器验收
 
