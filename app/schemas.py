@@ -26,6 +26,23 @@ class FeedbackIn(BaseModel):
     created_by: str | None = None
 
 
+class ClarificationFeedbackIn(BaseModel):
+    question_index: int = Field(ge=0)
+    category: Literal["MUST_HAVE", "NICE_TO_HAVE", "NOT_REQUIRED"]
+    answer: str = ""
+    base_spec_version: int = Field(ge=1)
+    created_by: str | None = None
+
+    @model_validator(mode="after")
+    def concrete_answer(self):
+        self.answer = self.answer.strip()
+        if self.category != "NOT_REQUIRED" and not self.answer:
+            raise ValueError("必须项和满意项需填写具体、可验证的岗位要求")
+        if self.category == "NOT_REQUIRED" and self.answer:
+            raise ValueError("非必要无需填写要求")
+        return self
+
+
 class CriterionIn(BaseModel):
     id: str | None = None
     type: CriterionType = "NICE_TO_HAVE"
@@ -44,6 +61,7 @@ class CriterionIn(BaseModel):
 
 class SpecConfirmIn(BaseModel):
     criteria: list[CriterionIn] = Field(min_length=1)
+    base_spec_version: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def unique_ids(self):
@@ -53,11 +71,27 @@ class SpecConfirmIn(BaseModel):
         return self
 
 
+class ManualSpecProposalIn(SpecConfirmIn):
+    """A manager-authored full Spec draft, optionally revising the job intent."""
+    base_spec_version: int = Field(ge=1)
+    requirement: str | None = Field(default=None, min_length=1)
+    created_by: str = "hr"
+
+
+class RequirementReanalyzeIn(BaseModel):
+    requirement: str = Field(min_length=1)
+    base_spec_version: int = Field(ge=1)
+
+
+class ProposalEditIn(SpecConfirmIn):
+    requirement: str | None = Field(default=None, min_length=1)
+
+
 class WorkflowOut(BaseModel):
     next_nodes: list[str] = []
     completed_nodes: list[str] = []
     waiting_for: Literal["spec_confirmation", "human_approval"] | None = None
-    model_mode: Literal["offline_fallback", "live"]
+    model_mode: Literal["offline_fallback", "live", "record", "replay"]
     checkpointer: Literal["memory", "postgres"]
     history: list[dict[str, Any]] = []
 
@@ -75,13 +109,16 @@ class ApprovalIn(BaseModel):
     criteria: list[CriterionIn] | None = None
     note: str = ""
     decided_by: str | None = None
+    base_spec_version: int | None = Field(default=None, ge=1)
 
 
 class EvaluationOut(BaseModel):
     candidate_id: str
     name: str = ""
     scores: dict[str, int | None]         # 2=满足 0=有反证 None=无证据
+    judgments: dict[str, str] = {}
     verdict: Verdict
+    tier_reason: str = ""
     tradeoff: dict[str, Any] = {}         # {strengths:[], gaps:[], veto_hit:[]}
 
 
@@ -101,6 +138,7 @@ class EvaluateCandidatesIn(BaseModel):
 class CalibrationOut(BaseModel):
     job_id: str
     job_title: str = ""
+    requirement: str = ""
     status: str                            # EVALUATED / AWAITING_APPROVAL / AWAITING_SPEC_CONFIRMATION
     spec_version: int
     criteria: list[dict[str, Any]]
@@ -115,6 +153,14 @@ class CalibrationOut(BaseModel):
     workflow: WorkflowOut
     clarified_requirement: str | None = None
     clarification_questions: list[str] | None = None
+    clarification_responses: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    allocated_criterion_ids: list[str] = []
+    recomputation: dict[str, Any] | None = None
+    proposal_impact: dict[str, Any] | None = None
+    feedback_status: str | None = None
+    feedback_question: str | None = None
+    approval_draft: list[dict[str, Any]] | None = None
+    requirement_revision: str | None = None
 
 
 class HistoryOut(BaseModel):

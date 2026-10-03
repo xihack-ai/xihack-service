@@ -34,8 +34,10 @@ class Tradeoff(TypedDict):
 class Evaluation(TypedDict):
     candidate_id: str
     scores: dict[str, int | None]     # 2=满足 0=不满足 None=无证据(不臆断)
+    judgments: dict[str, str]
     evidence_ids: list[str]
     verdict: Verdict
+    tier_reason: str
     tradeoff: Tradeoff
 
 
@@ -69,4 +71,14 @@ class CalibrationState(TypedDict, total=False):
 
     clarified_requirement: str
     clarification_questions: list[str]
+    clarification_responses: dict[str, dict[str, Any]]
+    clarification_active_index: str | None
     workflow_history: list[dict[str, Any]]   # 当前图状态的操作记录(节点级轨迹)
+    rejected_proposals: list[str]
+    allocated_criterion_ids: list[str]
+    recomputation: dict[str, Any]
+    feedback_status: str | None
+    feedback_question: str | None
+    approval_draft: list[Criterion] | None
+    requirement_revision: str | None  # Awaiting human approval; never overwrite the active intent early.
+    requirement_clarification_draft: dict[str, Any] | None

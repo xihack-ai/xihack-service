@@ -68,6 +68,15 @@ def load_job(job_id: str) -> dict | None:
         return {**job, "candidates": list(cur.fetchall())}
 
 
+def update_job_requirement(job_id: str | None, requirement: str, actor: str) -> None:
+    if not db.is_configured() or not job_id:
+        return
+    with db.connect() as conn, conn.cursor() as cur:
+        cur.execute("update jobs set requirement = %s, updated_at = now() where id = %s",
+                    (requirement, job_id))
+    audit(job_id, actor, "REQUIREMENT_REVISED", {"requirement": requirement})
+
+
 def add_candidates(job_id: str, candidates: list[dict]) -> list[dict]:
     """Store an import in one transaction; return canonical IDs on text duplicates."""
     if not db.is_configured():

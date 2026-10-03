@@ -38,7 +38,9 @@ def test_create_job_rule_based_tiers() -> None:
     ls = next(e for e in out["evaluations"] if e["name"] == "李四")
     assert zs["scores"]["c1"] == 2                         # 硬性要求均有简历原文
     assert zs["verdict"] == "推荐"
-    assert ls["verdict"] == "待核实"                        # 缺证据 ≠ 不推荐
+    assert ls["verdict"] == "不推荐"                      # 全部必须项无证据，本轮不推荐
+    assert ls["scores"]["c1"] is None and ls["scores"]["c2"] is None
+    assert "不代表候选人没有相关能力" in ls["tier_reason"]
 
 
 def test_no_evidence_is_not_zero() -> None:
@@ -62,7 +64,7 @@ def test_tradeoff_map() -> None:
 def test_ranking_puts_recommended_first() -> None:
     out = _client().post("/jobs", json=BODY).json()
     assert [e["name"] for e in out["evaluations"]][0] == "张三"
-    assert out["tiers"]["推荐"] == 1 and out["tiers"]["待核实"] == 1
+    assert out["tiers"]["推荐"] == 1 and out["tiers"]["不推荐"] == 1
 
 
 def test_feedback_approval_reeval() -> None:
@@ -102,7 +104,8 @@ def test_approval_edit_replaces_criteria_and_triggers_veto() -> None:
 
     by_name = {e["name"]: e for e in r["evaluations"]}
     assert by_name["李四"]["verdict"] == "否决"                  # 否决项命中
-    assert by_name["张三"]["verdict"] == "推荐"
+    assert by_name["张三"]["verdict"] == "待核实"
+    assert by_name["张三"]["judgments"]["v1"] == "UNKNOWN"
 
 
 def test_approval_rejected_keeps_spec() -> None:
@@ -120,7 +123,7 @@ def test_bias_redline_blocks_proposal() -> None:
     r = c.post(f"/calibrations/{job_id}/feedback",
                json={"text": "更看重性别男、35岁以下"}).json()
     assert r["status"] == "EVALUATED"                      # 不进人工审批
-    assert set(r["risk_flags"]) & {"性别", "男", "年龄", "岁"}
+    assert any("年龄" in flag or "性别" in flag for flag in r["risk_flags"])
     assert r["change_proposal"] is None
     assert r["spec_version"] == 1
 

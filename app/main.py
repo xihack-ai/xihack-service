@@ -23,11 +23,13 @@ from langgraph.types import Command  # noqa: E402
 from app import db, llm, store  # noqa: E402
 from app import database  # noqa: E402
 from app import resume_parser  # noqa: E402
+from app.hireloop_rules import change_impact, judgment, proposal_criteria  # noqa: E402
 from app.recruiting_api import router as recruiting_router  # noqa: E402
 from app.workflow import graph as wf  # noqa: E402
 from app.workflow import nodes as wf_nodes  # noqa: E402
-from app.schemas import (ApprovalIn, CalibrationOut, FeedbackIn, HistoryOut,  # noqa: E402
-                         EvaluateCandidatesIn, JobIn, SpecConfirmIn, WorkflowOut)
+from app.schemas import (ApprovalIn, CalibrationOut, FeedbackIn, ClarificationFeedbackIn, HistoryOut,  # noqa: E402
+                         EvaluateCandidatesIn, JobIn, SpecConfirmIn, ManualSpecProposalIn,
+                         RequirementReanalyzeIn, ProposalEditIn, WorkflowOut)
 from hirespec_loop.errors import HireSpecError  # noqa: E402
 
 app = FastAPI(title="xihack-service")
@@ -39,7 +41,8 @@ app.add_middleware(
             "CORS_ORIGINS",
             "http://localhost:3000,http://127.0.0.1:3000,"
             "http://localhost:3001,http://127.0.0.1:3001,"
-            "http://localhost:3002,http://127.0.0.1:3002",
+            "http://localhost:3002,http://127.0.0.1:3002,"
+            "http://localhost:9023,http://127.0.0.1:9023",
         ).split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
@@ -119,7 +122,7 @@ def _rank(evaluations: list[dict], criteria: list[dict]) -> list[dict]:
     return sorted(
         evaluations,
         key=lambda e: (_TIER_ORDER.get(e["verdict"], 9),
-                       -sum(weight.get(cid, 0) for cid, s in e["scores"].items() if s == 2)))
+                       -sum(weight.get(cid, 0) for cid, s in e["scores"].items() if s == 2), e["candidate_id"]))
 
 
 def _workflow_info(snap) -> WorkflowOut:
@@ -137,8 +140,7 @@ def _workflow_info(snap) -> WorkflowOut:
         next_nodes=nxt,
         completed_nodes=completed,
         waiting_for=waiting,  # type: ignore[arg-type]
-        model_mode="live" if (llm.is_configured() and not llm.replay_only())
-                   else "offline_fallback",  # type: ignore[arg-type]
+        model_mode=llm.model_mode(),
         checkpointer="postgres" if db.is_configured() else "memory",  # type: ignore[arg-type]
         history=history,
     )
@@ -158,7 +160,9 @@ def _snapshot(job_id: str) -> CalibrationOut:
         payload = intr[0].value if intr else {}
     names = {c["id"]: c["name"] for c in v.get("candidates", [])}
     criteria = v.get("criteria", [])
-    evals = [{**e, "name": names.get(e["candidate_id"], "")} for e in v.get("evaluations", [])]
+    evals = [{**e, "name": names.get(e["candidate_id"], ""),
+              "judgments": e.get("judgments") or {c["id"]: judgment(c["type"], e["scores"].get(c["id"])) for c in criteria}}
+             for e in v.get("evaluations", [])]
     ranked = _rank(evals, criteria)
     tiers = {t: sum(1 for e in ranked if e["verdict"] == t) for t in _TIER_ORDER}
     status = ("AWAITING_SPEC_CONFIRMATION" if workflow.waiting_for == "spec_confirmation"
@@ -168,6 +172,7 @@ def _snapshot(job_id: str) -> CalibrationOut:
     return CalibrationOut(
         job_id=job_id,
         job_title=v.get("job_title", ""),
+        requirement=v.get("requirement", ""),
         status=status,
         spec_version=v.get("spec_version", 0),
         criteria=criteria,
@@ -188,6 +193,13 @@ def _snapshot(job_id: str) -> CalibrationOut:
         workflow=workflow,
         clarified_requirement=v.get("clarified_requirement"),
         clarification_questions=v.get("clarification_questions"),
+        clarification_responses=v.get("clarification_responses") or {},
+        allocated_criterion_ids=v.get("allocated_criterion_ids", []),
+        recomputation=v.get("recomputation"),
+        proposal_impact=change_impact(criteria, proposal_criteria(v), len(evals)) if awaiting else None,
+        feedback_status=v.get("feedback_status"), feedback_question=v.get("feedback_question"),
+        approval_draft=v.get("approval_draft"),
+        requirement_revision=v.get("requirement_revision") if awaiting else None,
     )
 
 
@@ -329,7 +341,7 @@ def evaluate_candidates(job_id: str, body: EvaluateCandidatesIn) -> CalibrationO
             raise HTTPException(409, "请先确认招聘标准或处理待审批提案。")
         if not snap.values.get("criteria"):
             raise HTTPException(409, "尚未生成招聘标准。")
-        if not llm.is_configured() or llm.replay_only():
+        if llm.model_mode() == "offline_fallback":
             raise HTTPException(503, detail={"code": "LIVE_MODEL_REQUIRED",
                                            "message": "请在后端配置真实模型并关闭 REPLAY_ONLY 后评估简历。"})
         known = {c["id"] for c in snap.values.get("candidates", [])}
@@ -386,7 +398,162 @@ def submit_feedback(job_id: str, body: FeedbackIn) -> CalibrationOut:
             raise HTTPException(409, "已有提案待审批,请先 Accept / Edit / Reject")
         if snap.next:
             raise HTTPException(409, "评估尚未完成，请先重试评估，再提交反馈。")
-        g.invoke({"feedback": body.text, "feedback_created_by": body.created_by}, _config(job_id))
+        g.invoke({"feedback": body.text, "feedback_created_by": body.created_by,
+                  "clarification_active_index": None}, _config(job_id))
+        return _snapshot(job_id)
+
+
+@app.post("/calibrations/{job_id}/spec/manual-proposal", response_model=CalibrationOut)
+def propose_manual_spec(job_id: str, body: ManualSpecProposalIn) -> CalibrationOut:
+    """Stage a manager-authored revision at human_approval without changing the active Spec."""
+    g = wf.get_graph()
+    with _job_mutex(job_id):
+        snap = g.get_state(_config(job_id))
+        if not snap.values:
+            raise HTTPException(404, "校准流程不存在")
+        if snap.next:
+            raise HTTPException(409, "请先处理当前待确认标准或待审批提案")
+        current = snap.values
+        version = int(current.get("spec_version") or 1)
+        if body.base_spec_version != version:
+            raise HTTPException(409, "提议基础版本已过期，请刷新后重新编辑。")
+        edited = wf_nodes.normalize_criteria([c.model_dump() for c in body.criteria])
+        wf_nodes.check_criteria_risk(edited)
+        old = {c["id"]: c for c in current.get("criteria", [])}
+        new = {c["id"]: c for c in edited}
+        retired = set(current.get("allocated_criterion_ids", [])) - set(old)
+        if any(cid in retired for cid in new):
+            raise HTTPException(422, "已删除的标准 ID 不得复用，请分配新 ID。")
+        revised_requirement = body.requirement.strip() if body.requirement is not None else None
+        if revised_requirement and revised_requirement != current.get("requirement"):
+            risks = wf_nodes.risk_review([revised_requirement])
+            if risks:
+                raise HTTPException(422, "修订需求包含受限条件：" + "；".join(risks))
+            clarification = wf_nodes.clarify({"requirement": revised_requirement})
+        else:
+            revised_requirement = None
+            clarification = None
+        if edited == current.get("criteria") and revised_requirement is None:
+            raise HTTPException(422, "标准和招聘意图均未变化")
+        proposal = {
+            "reason": "招聘经理手动修订招聘标准" + ("和招聘意图" if revised_requirement else ""),
+            "status": "PENDING_APPROVAL",
+            "add": [dict(c) for c in edited if c["id"] not in old],
+            "remove": sorted(old.keys() - new.keys()),
+            "update": [dict(c) for c in edited if c["id"] in old and c != old[c["id"]]],
+            "requirement_revision": revised_requirement,
+        }
+        fid = store.save_feedback(job_id, version, proposal["reason"], body.created_by)
+        staged = {**current, "feedback_id": fid, "change_proposal": proposal}
+        store.save_proposal(staged, status="PENDING_APPROVAL", risk_flags=[])
+        g.update_state(_config(job_id), {
+            "feedback_id": fid, "feedback_status": "PENDING_APPROVAL",
+            "change_proposal": proposal, "approval_draft": edited,
+            "requirement_revision": revised_requirement,
+            "requirement_clarification_draft": clarification,
+            "risk_flags": [], "feedback_question": None,
+        }, as_node="propose_change")
+        g.invoke(None, _config(job_id))
+        return _snapshot(job_id)
+
+
+@app.post("/calibrations/{job_id}/requirement/reanalyze", response_model=CalibrationOut)
+def reanalyze_draft_requirement(job_id: str, body: RequirementReanalyzeIn) -> CalibrationOut:
+    """Create a fresh unapproved draft from revised intent; keep the old draft intact."""
+    with _job_mutex(job_id):
+        snap = wf.get_graph().get_state(_config(job_id))
+        if not snap.values:
+            raise HTTPException(404, "校准流程不存在")
+        if "spec_confirmation" not in (snap.next or ()):
+            raise HTTPException(409, "已确认的职位请通过标准修订提案修改招聘意图")
+        old = snap.values
+        if body.base_spec_version != old.get("spec_version"):
+            raise HTTPException(409, "草稿版本已变化，请刷新后再分析")
+        requirement = body.requirement.strip()
+        if requirement == old.get("requirement"):
+            raise HTTPException(422, "招聘意图未变化")
+        new_id = str(uuid.uuid4())
+        candidates = [{**c, "id": str(uuid.uuid4())} for c in old.get("candidates", [])]
+        job = {"id": new_id, "title": old.get("job_title", "未命名职位"),
+               "requirement": requirement, "candidates": candidates}
+        # The new draft is isolated; the old job and approved versions are untouched.
+        _save_job(job)
+        wf.get_graph().invoke({"job_id": new_id, "job_title": job["title"],
+            "requirement": requirement, "candidates": candidates,
+            "spec_version": 1, "require_spec_confirmation": True}, _config(new_id))
+        return _snapshot(new_id)
+
+
+@app.post("/calibrations/{job_id}/clarification-feedback", response_model=CalibrationOut)
+def submit_clarification_feedback(job_id: str, body: ClarificationFeedbackIn) -> CalibrationOut:
+    """逐条处理生成 Spec 后未确认的问题；变更仍走模型提案和人工审批。"""
+    g = wf.get_graph()
+    with _job_mutex(job_id):
+        snap = g.get_state(_config(job_id))
+        if not snap.values:
+            raise HTTPException(404, "校准流程不存在")
+        if body.base_spec_version != snap.values.get("spec_version"):
+            raise HTTPException(409, "基础版本已过期，请刷新后重新提交。")
+        if snap.next:
+            raise HTTPException(409, "请先确认初始标准或处理当前待审批提案。")
+        questions = snap.values.get("clarification_questions") or []
+        if body.question_index >= len(questions):
+            raise HTTPException(422, "待核实问题不存在")
+        key = str(body.question_index)
+        responses = dict(snap.values.get("clarification_responses") or {})
+        if responses.get(key, {}).get("status") == "PENDING_APPROVAL":
+            raise HTTPException(409, "该问题已有待审批提案。")
+        response = {"question": questions[body.question_index], "category": body.category,
+                    "answer": body.answer, "base_spec_version": body.base_spec_version,
+                    "status": "NOT_REQUIRED" if body.category == "NOT_REQUIRED" else "SUBMITTED"}
+        responses[key] = response
+        if body.category == "NOT_REQUIRED":
+            # 从完成状态写入同一 checkpoint，不启动反馈图，也不改变标准/排名。
+            g.update_state(_config(job_id), {"clarification_responses": responses,
+                                             "clarification_active_index": None,
+                                             "risk_flags": [], "feedback_status": "NO_CHANGE",
+                                             "feedback_question": None, "change_proposal": None},
+                           as_node="evaluate")
+            store.audit(job_id, body.created_by or "hr", "CLARIFICATION_NOT_REQUIRED",
+                        {"question_index": body.question_index, "spec_version": body.base_spec_version})
+            return _snapshot(job_id)
+        label = "必须项" if body.category == "MUST_HAVE" else "满意项（加分项）"
+        feedback = (f"针对待核实问题『{response['question']}』，招聘经理澄清为{label}："
+                    f"{body.answer}。请只建议对应的最小标准变更，不要自行增加年限或其他门槛。")
+        g.invoke({"feedback": feedback, "feedback_created_by": body.created_by or "hr",
+                  "clarification_responses": responses, "clarification_active_index": key}, _config(job_id))
+        return _snapshot(job_id)
+
+
+@app.post("/calibrations/{job_id}/proposal/edit", response_model=CalibrationOut)
+def edit_proposal(job_id: str, body: ProposalEditIn) -> CalibrationOut:
+    """Save a reviewed draft; keep the approval interrupt and current ranking."""
+    g = wf.get_graph()
+    with _job_mutex(job_id):
+        snap = g.get_state(_config(job_id))
+        if "human_approval" not in snap.next:
+            raise HTTPException(409, "当前没有待审批提议")
+        if body.base_spec_version is not None and body.base_spec_version != snap.values.get("spec_version"):
+            raise HTTPException(409, "基础版本已过期，请刷新后编辑")
+        edited = wf_nodes.normalize_criteria([c.model_dump() for c in body.criteria])
+        wf_nodes.check_criteria_risk(edited)
+        current_ids = {c["id"] for c in snap.values.get("criteria", [])}
+        retired = set(snap.values.get("allocated_criterion_ids", [])) - current_ids
+        if any(c["id"] in retired for c in edited):
+            raise HTTPException(422, "已删除的标准 ID 不得复用")
+        patch = {"approval_draft": edited}
+        if body.requirement is not None:
+            revised = body.requirement.strip()
+            risks = wf_nodes.risk_review([revised])
+            if risks:
+                raise HTTPException(422, "修订需求包含受限条件：" + "；".join(risks))
+            patch["requirement_revision"] = revised if revised != snap.values.get("requirement") else None
+            patch["requirement_clarification_draft"] = (
+                wf_nodes.clarify({"requirement": revised}) if patch["requirement_revision"] else None)
+        if edited == snap.values.get("criteria") and patch.get("requirement_revision", snap.values.get("requirement_revision")) is None:
+            raise HTTPException(422, "草稿没有变更；若不采纳提案，请点击拒绝")
+        g.update_state(_config(job_id), patch, as_node="propose_change")
+        store.audit(job_id, "manager", "PROPOSAL_DRAFT_SAVED", {"base_version": snap.values.get("spec_version")})
         return _snapshot(job_id)
 
 
@@ -403,18 +570,31 @@ def submit_approval(job_id: str, body: ApprovalIn) -> CalibrationOut:
             raise HTTPException(404, "校准流程不存在")
         if "human_approval" not in (snap.next or ()):
             raise HTTPException(409, "当前没有待审批的标准变更")
+        if body.base_spec_version is not None and body.base_spec_version != snap.values.get("spec_version"):
+            raise HTTPException(409, "提议基础版本已过期，请刷新当前版本后重新审核。")
         if body.action is None and body.criteria:
             action = "edit"
         else:
             action = body.action or ("accept" if body.approved else "reject")
-        if action == "edit" and not body.criteria:
+        edit_input = body.criteria
+        if action == "accept" and snap.values.get("approval_draft"):
+            action = "edit"
+            edit_input = snap.values["approval_draft"]
+        if action == "edit" and not edit_input:
             raise HTTPException(422, "action=edit 必须提供 criteria")
 
         edited = None
-        if action == "edit" and body.criteria:
+        if action == "edit" and edit_input:
             # 格式/风险校验必须在 Command(resume=...) 之前:报错不入 checkpoint。
-            edited = wf_nodes.normalize_criteria([c.model_dump() for c in body.criteria])
+            edited = wf_nodes.normalize_criteria([c if isinstance(c, dict) else c.model_dump() for c in edit_input])
             wf_nodes.check_criteria_risk(edited)
+            current_ids = {c["id"] for c in snap.values.get("criteria", [])}
+            retired = set(snap.values.get("allocated_criterion_ids", [])) - current_ids
+            if any(c["id"] in retired for c in edited):
+                raise HTTPException(422, "已删除的标准 ID 不得复用，请分配新 ID。")
+        elif action == "accept":
+            # Recheck original or edited content immediately before publication.
+            wf_nodes.check_criteria_risk(wf_nodes.normalize_criteria(proposal_criteria(snap.values)))
 
         decision = {
             "action": action,
@@ -424,6 +604,8 @@ def submit_approval(job_id: str, body: ApprovalIn) -> CalibrationOut:
             "decided_by": body.decided_by or "hr",
         }
         g.invoke(Command(resume=decision), _config(job_id))
+        if action != "reject" and job_id in _mem_jobs:
+            _mem_jobs[job_id]["requirement"] = g.get_state(_config(job_id)).values.get("requirement", "")
         return _snapshot(job_id)
 
 

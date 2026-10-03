@@ -13,8 +13,8 @@ class DatasetSplit:
 
     def __post_init__(self) -> None:
         all_ids = self.calibration_ids + self.test_ids
-        if len(self.calibration_ids) != 10 or len(self.test_ids) != 30 or len(set(all_ids)) != 40:
-            raise InputError("验证集必须为固定、不重叠的 10 份校准样本和 30 份测试样本。")
+        if not self.calibration_ids or not self.test_ids or len(set(all_ids)) != len(all_ids):
+            raise InputError("校准集与测试集必须非空、无重复且不重叠。")
 
 
 def precision_at_5(ranked_ids: Sequence[str], labels: Mapping[str, bool]) -> float:
@@ -34,6 +34,6 @@ def compare_top5(
     if set(rankings) != {"keyword_baseline", "spec_v1", "spec_v2"} or set(test_labels) != expected:
         raise InputError("必须提供三个方法及同一测试集的独立标签。")
     for ids in rankings.values():
-        if len(ids) != 30 or len(set(ids)) != 30 or set(ids) != expected:
-            raise InputError("三个方法必须在同一 30 份测试样本上排序。")
+        if len(ids) != len(expected) or len(set(ids)) != len(expected) or set(ids) != expected:
+            raise InputError("三个方法必须在同一完整测试集上排序。")
     return {method: precision_at_5(ids, test_labels) for method, ids in rankings.items()}

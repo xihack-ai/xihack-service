@@ -5,6 +5,7 @@ PG 环境变量全程清空,图用内存 checkpointer。
 """
 
 import os
+import json
 
 os.environ["REPLAY_ONLY"] = "1"
 os.environ.pop("LLM_API_KEY", None)
@@ -35,6 +36,17 @@ def _fake_live_model(monkeypatch, request):
     def fake_chat_json(messages, fallback=None, **kwargs):
         system = messages[0]["content"]
         user = messages[-1]["content"]
+        if "判断招聘文本" in system:
+            return {"status": "SAFE", "reason": "测试替身：岗位相关"}
+        if "把反馈翻译" in system:
+            payload = json.loads(user)
+            text = payload["feedback"]
+            # Explicit test fixture behavior, never a production fallback.
+            if text == "感觉不合适":
+                return {"reason": text, "status": "NEEDS_CLARIFICATION", "clarification_question": "哪项岗位能力不足？"}
+            add = [{"text": text[:40], "type": "NICE_TO_HAVE", "weight": 2}] if any(k in text for k in ("更看重", "增加", "要求", "必须")) else []
+            remove = [c["id"] for c in payload["criteria"] if any(k in text for k in ("取消", "删除", "去掉")) and any(t in text for t in nodes._tokens(c["text"]))]
+            return {"reason": text, "add": add, "remove": remove, "update": []}
         if "source_quote" in system:  # generate_spec:把整段需求作为来源原文,回拟三条标准
             return {"criteria": [
                 {"id": "c1", "type": "MUST_HAVE", "text": "相关项目经验", "weight": 3, "source_quote": user},

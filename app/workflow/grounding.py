@@ -36,11 +36,14 @@ def grounded_standard(raw: dict, requirement: str) -> bool:
     if not isinstance(source, str) or not source.strip() or source not in requirement:
         return False
     # Waived responsibilities and vague seniority labels are clarification data.
-    if any(word in text for word in ("不要求", "不需要", "无需", "非必须", "高级", "资深")):
+    if any(word in text for word in ("高级", "资深")) or text.startswith(("不要求", "不需要", "无需", "非必须")):
         return False
     if any(word in source for word in ("不要求", "不需要", "无需", "不必")):
         waived = re.findall(r"(?:不要求|不需要|无需|不必)([^，,。；;]+)", source)
-        if len(source) <= 15 or any(w.strip() in text for w in waived if w.strip()):
+        # A positive criterion can explicitly waive an extra proof requirement.
+        # "高并发经历，不要求项目名称" must not disappear just because of the waiver.
+        if (len(source) <= 15 and source.startswith(("不要求", "不需要", "无需", "不必"))) or any(w.strip() in text and not any(prefix + w.strip() in text for prefix in ("不要求", "不需要", "无需", "不必"))
+               for w in waived if w.strip()):
             return False
     if raw.get("type") == "VETO" and not any(
         word in source for word in ("禁止", "不得", "不能", "一票否决", "不可", "拒绝")):

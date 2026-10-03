@@ -25,12 +25,18 @@ def test_waiver_does_not_authorize_veto_for_the_opposite():
     assert not grounded_standard({'text': '管理团队经验', 'type': 'NICE_TO_HAVE', 'source_quote': source}, source)
 
 
+def test_positive_criterion_with_waived_extra_proof_is_retained():
+    source = '必须有高并发系统经历，不要求项目名称'
+    assert grounded_standard({'text': source, 'type': 'MUST_HAVE', 'source_quote': source}, source)
+
+
 @pytest.mark.parametrize('source', ['至少5年Python经验', '至少五年Python经验', '至少60个月Python经验'])
 def test_explicit_years_remain_allowed(source):
     assert grounded_standard({'text': '至少5年Python经验', 'source_quote': source}, source)
 
 
 def test_clarification_hallucination_is_not_a_source(monkeypatch):
+    monkeypatch.setattr(nodes, 'risk_review', lambda texts: [])
     monkeypatch.setattr(nodes.llm, 'is_configured', lambda: True)
     monkeypatch.setattr(nodes.llm, 'replay_only', lambda: False)
     monkeypatch.setattr(nodes.store, 'save_spec', lambda *a, **k: None)

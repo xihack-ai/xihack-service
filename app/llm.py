@@ -1,9 +1,7 @@
-"""模型调用封装:chat / chat_json + 磁盘缓存 + 重试 + REPLAY_ONLY。
+"""Strict live/record/replay model calls; failures never become mock verdicts.
 
-- 未配置 LLM_API_KEY 或 REPLAY_ONLY=1(断网演练)时不发起网络请求;
-- chat_json(messages, fallback=...) 永远返回 dict:
-  命中缓存 -> 缓存内容;否则走网络;失败 -> fallback(合法 JSON,保证流程不中断)。
-- 缓存文件 .cache/llm_cache.json,演示前预跑即可填满。
+Legacy fallback argument is accepted for call compatibility, never used as data.
+LLM_CACHE_FILE retains the deployment path; writes are atomic within one process.
 """
 
 import hashlib
@@ -11,14 +9,26 @@ import json
 import os
 import re
 import time
+import threading
 from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
+from hirespec_loop.errors import ModelTaskError
 
 CACHE_FILE = Path(os.getenv("LLM_CACHE_FILE", str(Path(__file__).resolve().parent.parent / ".cache" / "llm_cache.json")))
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
+_CACHE_LOCK = threading.Lock()
+
+
+def model_mode() -> str:
+    requested = os.getenv("HIRELOOP_MODEL_MODE", "").upper()
+    if requested not in {"", "LIVE", "RECORD", "REPLAY"}:
+        raise ModelTaskError("HIRELOOP_MODEL_MODE 必须为 LIVE/RECORD/REPLAY；生产不提供模拟兜底。")
+    if requested:
+        return requested.lower()
+    return "live" if is_configured() and not replay_only() else "offline_fallback"
 
 
 def is_configured() -> bool:
@@ -30,7 +40,7 @@ def replay_only() -> bool:
 
 
 def _cache_key(model: str, messages: list[dict], temperature: float = 0.3) -> str:
-    payload = json.dumps({"evaluator_version": "grounded-v2", "base": os.getenv("LLM_BASE_URL"),
+    payload = json.dumps({"evaluator_version": "grounded-v3-integrated", "base": os.getenv("LLM_BASE_URL"),
                           "model": model, "messages": messages, "temperature": temperature},
                          ensure_ascii=False, sort_keys=True)
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()
@@ -46,28 +56,34 @@ def _cache_read() -> dict:
 def _cache_write(cache: dict) -> None:
     try:
         CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
+        temporary = CACHE_FILE.with_suffix(".tmp")
+        temporary.write_text(json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
+        temporary.replace(CACHE_FILE)
     except OSError:
-        pass  # 缓存失败不影响主流程
+        raise ModelTaskError("模型记录无法保存，请检查缓存目录权限；未宣称录制成功。") from None
 
 
 def chat(messages: list[dict], temperature: float = 0.3, timeout: float = 30, retries: int = 2) -> str | None:
-    """返回模型文本;离线/失败返回 None(由调用方 fallback)。"""
+    """Return model or replay text; unavailable calls raise ModelTaskError."""
     model = os.getenv("LLM_MODEL", "gpt-4o-mini")
     key = _cache_key(model, messages, temperature)
 
+    mode = model_mode()
     cached = _cache_read().get(key)
-    if cached is not None:
+    if mode == "replay":
+        if not isinstance(cached, str):
+            raise ModelTaskError("回放未找到对应记录，请用 RECORD 预跑相同输入。")
         return cached
-
-    if replay_only() or not is_configured():
-        return None
+    if mode == "offline_fallback" or not is_configured():
+        raise ModelTaskError("未配置真实模型密钥，未使用模拟结果替代。")
+    # Keep existing automatic cache behavior unless an explicit LIVE/RECORD is selected.
+    if not os.getenv("HIRELOOP_MODEL_MODE") and isinstance(cached, str):
+        return cached
 
     base = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     payload = {"model": model, "messages": messages, "temperature": temperature}
     if urlparse(base).hostname == "api.deepseek.com":
         payload["thinking"] = {"type": "disabled"}
-    last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
             resp = httpx.post(
@@ -78,16 +94,18 @@ def chat(messages: list[dict], temperature: float = 0.3, timeout: float = 30, re
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
-            cache = _cache_read()
-            cache[key] = content
-            _cache_write(cache)
+            if not isinstance(content, str):
+                raise ValueError("invalid model content")
+            if mode == "record" or not os.getenv("HIRELOOP_MODEL_MODE"):
+                with _CACHE_LOCK:
+                    cache = _cache_read()
+                    cache[key] = content
+                    _cache_write(cache)
             return content
-        except (httpx.HTTPError, KeyError, IndexError) as e:
-            last_err = e
+        except (httpx.HTTPError, KeyError, IndexError, ValueError):
             if attempt < retries:
                 time.sleep(1.5 * (attempt + 1))
-    print(f"[llm] 调用失败: {type(last_err).__name__}")
-    return None
+    raise ModelTaskError("模型调用失败或超时，未使用模拟结果替代；请重试。") from None
 
 
 def _parse_json(text: str) -> dict | None:
@@ -110,12 +128,11 @@ def _parse_json(text: str) -> dict | None:
 
 
 def chat_json(messages: list[dict], fallback: dict, **kwargs) -> dict:
-    """要求模型输出 JSON 对象;任何失败路径返回 fallback(调用方仍需校验字段值)。"""
+    """Require a JSON object, fail closed instead of using the legacy fallback."""
     raw = chat(messages, **kwargs)
     if raw is None:
-        return dict(fallback)
+        raise ModelTaskError("模型未返回内容。")
     parsed = _parse_json(raw)
     if parsed is None:
-        print("[llm] 输出不是合法 JSON,使用 fallback")
-        return dict(fallback)
+        raise ModelTaskError("模型未返回合法 JSON，未使用模拟结果替代。")
     return parsed

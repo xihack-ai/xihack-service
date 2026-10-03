@@ -227,7 +227,7 @@ pytest        # 全离线:LLM 回退 + 内存 checkpointer
 - `DATABASE_URL` 或 PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE(可选)
 - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` / `REPLAY_ONLY`：LangGraph 主流程的模型配置，见下文。
 - `HIRESPEC_API_TOKEN` / `HIRESPEC_LOCAL_ACTOR` / `HIRESPEC_AI_MODE`：独立 `/api/hiring/*` 接口的本地令牌、账号和模型模式，不与主流程的模型配置混用。
-- `CORS_ORIGINS`:逗号分隔,默认允许 `localhost` 和 `127.0.0.1` 的 3000、3001、3002 端口；其他来源需显式配置。修改配置后需要重启后端；设置此变量会覆盖默认来源。
+- `CORS_ORIGINS`:逗号分隔,默认允许 `localhost` 和 `127.0.0.1` 的 3000、3001、3002、9023 端口；其他来源需显式配置。修改配置后需要重启后端；设置此变量会覆盖默认来源。
 
 ## 外部模型 API 与调用方式
 
@@ -254,6 +254,14 @@ Base URL 必须带 `/v1`，代码会在其后追加 `/chat/completions`。调用
 修改 `.env` 后重启后端。`workflow.model_mode=live` 表示已配置密钥且未开启 replay，并不保证每次请求都成功调用模型（可能命中缓存或失败回退）；实际成功调用需结合模型响应和后端日志确认。`.env` 与 `.cache/` 已被 `.gitignore` 忽略。
 
 ## 批量上传简历
+
+### 人工修订招聘意图与标准
+
+- 初始 Spec 待确认时，可调用 `POST /calibrations/{job_id}/requirement/reanalyze`，提交 `requirement` 与 `base_spec_version`。后端复制该草稿的候选人文本，生成新的待确认职位；原草稿保留。
+- 初始 Spec 确认后，调用 `POST /calibrations/{job_id}/spec/manual-proposal`，提交完整 `criteria`、当前 `base_spec_version`，以及可选的修订后 `requirement`。这只创建待审批提案，不修改现行标准或排名。
+- 审批使用现有 `/calibrations/{job_id}/approval`。接受后才发布下一版本、更新招聘意图并按变动条款重评；拒绝时保留现行版本。编辑待审批提案使用 `/calibrations/{job_id}/proposal/edit`。
+
+至少保留一条标准。未改动条款保持原 ID，新增条款使用未占用的新 ID；敏感条件、重复标准和过期基础版本由后端拦截。
 
 候选人页支持多选或拖拽 PDF、DOC、DOCX、RTF。先创建职位，再上传；上传前后都可以确认标准。文件通过 AnyDoc 0.2.4 在后端本地转为 Markdown 文本，不启用 hosted OCR。扫描件、加密文件和损坏文件按文件提示失败，其余文件继续导入。原始文件不保留，解析文本与来源文件名保存在候选人记录和 checkpoint 中。
 
