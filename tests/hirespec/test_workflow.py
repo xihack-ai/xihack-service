@@ -4,7 +4,7 @@ import pytest
 
 from hirespec_loop.cache import build_snapshot
 from hirespec_loop.errors import ApprovalError, ClarificationRequired, ModelTaskError, PolicyError, StaleProposalError
-from hirespec_loop.fixtures import (
+from demo_fixtures import (
     OWNERSHIP_FEEDBACK, PROMOTION_FEEDBACK, UNCHANGED_FEEDBACK, VAGUE_FEEDBACK,
     load_candidates, seed_bodies,
 )

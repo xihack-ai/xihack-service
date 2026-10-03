@@ -12,6 +12,8 @@ dependencies = [
     "langgraph>=1.0",
     "langgraph-checkpoint-postgres>=2.0",
     "psycopg[binary]>=3.2,<4",
+    "firecrawl-anydoc==0.2.4",
+    "python-multipart>=0.0.20,<1",
 ]
 
 [project.optional-dependencies]
@@ -24,9 +26,13 @@ dev = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+[tool.pytest.ini_options]
+markers = [
+    "offline_llm: 保持真实离线 LLM 环境(默认测试用显式假模型替身)",
+]
+
 [tool.setuptools]
 packages = ["app", "app.workflow", "hirespec_loop"]
 
 [tool.setuptools.package-data]
-hirespec_loop = ["data/*.json"]
 app = ["schema.sql"]

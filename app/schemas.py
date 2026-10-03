@@ -85,6 +85,19 @@ class EvaluationOut(BaseModel):
     tradeoff: dict[str, Any] = {}         # {strengths:[], gaps:[], veto_hit:[]}
 
 
+class CandidateOut(BaseModel):
+    candidate_id: str
+    name: str
+    source_file: str | None = None
+    character_count: int
+    parser_version: str | None = None
+    evaluated: bool
+
+
+class EvaluateCandidatesIn(BaseModel):
+    candidate_ids: list[str] = Field(min_length=1, max_length=50)
+
+
 class CalibrationOut(BaseModel):
     job_id: str
     job_title: str = ""
@@ -93,6 +106,7 @@ class CalibrationOut(BaseModel):
     criteria: list[dict[str, Any]]
     evidence: list[dict[str, Any]]
     evaluations: list[EvaluationOut]       # 已按 档位 → 加权覆盖度 排序
+    candidates: list[CandidateOut] = []
     tiers: dict[str, int] = {}             # 各档人数
     risk_flags: list[str] = []
     change_proposal: dict[str, Any] | None = None

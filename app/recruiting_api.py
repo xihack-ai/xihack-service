@@ -1,4 +1,4 @@
-"""Local MVP recruitment routes. Explicit simulated AI and server-bound actor.
+"""Local MVP recruitment routes. Real model via shared LLM_* config; server-bound actor.
 
 The local bearer token is not production identity/organization authorization.
 The deployment owner must replace this dependency before multi-user deployment.
@@ -6,17 +6,20 @@ The deployment owner must replace this dependency before multi-user deployment.
 
 from functools import lru_cache
 import hmac
+import json
 import os
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import Field, StrictBool
 
 from app.recruiting_service import PersistentLoop
 from app.recruiting_store import RecruitingStore, wire
-from hirespec_loop.fixtures import OfflineDemoClient
+from hirespec_loop.llm import CallableJSONClient
 from hirespec_loop.models import Contract, PositiveInt, ProposedChange, SpecDraft, Text
 from hirespec_loop.service import HireSpecAI
 
@@ -27,22 +30,56 @@ bearer = HTTPBearer(auto_error=False)
 def actor(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]):
     expected = os.getenv("HIRESPEC_API_TOKEN", "")
     if not expected:
-        raise HTTPException(503, detail={"code": "HIRING_NOT_ENABLED", "message": "请用 local_backend.py --recruiting-demo 启用本地招聘接口。"})
+        raise HTTPException(503, detail={"code": "HIRING_NOT_ENABLED", "message": "招聘接口未启用：请设置 HIRESPEC_API_TOKEN。"})
     if not credentials or credentials.scheme.lower() != "bearer" or not hmac.compare_digest(credentials.credentials, expected):
         raise HTTPException(401, detail={"code": "UNAUTHORIZED", "message": "请在接口文档 Authorize 中填写本地访问令牌。"})
     return os.getenv("HIRESPEC_LOCAL_ACTOR", "manager-local")
 
 
+def llm_configured() -> bool:
+    return bool(os.getenv("LLM_API_KEY"))
+
+
+def ai_model_mode() -> str:
+    return "live" if llm_configured() else "unconfigured"
+
+
 @lru_cache
 def get_ai():
-    mode = os.getenv("HIRESPEC_AI_MODE", "unconfigured")
-    if mode != "offline_demo":
-        raise HTTPException(503, detail={"code": "AI_NOT_CONFIGURED", "message": "尚未接入真实模型；模拟演示需明确启用 offline_demo。"})
-    return HireSpecAI(OfflineDemoClient())
+    """真实模型适配器:与 LangGraph 主接口共用 LLM_BASE_URL/LLM_API_KEY/LLM_MODEL。"""
+    if not llm_configured():
+        raise HTTPException(503, detail={"code": "AI_NOT_CONFIGURED", "message": "未配置 LLM_API_KEY，招聘闭环 AI 功能不可用。"})
+    base = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+    async def generate_json(system_prompt: str, request: dict, schema: dict):
+        messages = [
+            {"role": "system", "content": system_prompt
+             + "\n\n只输出符合以下 JSON Schema 的 JSON 对象，不要包裹代码块：\n"
+             + json.dumps(schema, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps(request, ensure_ascii=False)},
+        ]
+        payload = {"model": model, "messages": messages, "temperature": 0}
+        if urlparse(base).hostname == "api.deepseek.com":
+            payload["thinking"] = {"type": "disabled"}
+        async with httpx.AsyncClient(timeout=25) as client:
+            resp = await client.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {os.environ['LLM_API_KEY']}"},
+                json=payload,
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
+
+    client = CallableJSONClient(
+        generate_json, provider="openai-compatible",
+        model=model, settings={"base_host": urlparse(base).hostname, "temperature": 0},
+    )
+    return HireSpecAI(client)
 
 
 def get_loop(ai: Annotated[HireSpecAI, Depends(get_ai)]):
-    return PersistentLoop(RecruitingStore(), ai, model_mode=os.getenv("HIRESPEC_AI_MODE", "unconfigured"))
+    return PersistentLoop(RecruitingStore(), ai, model_mode=ai_model_mode())
 
 
 Actor = Annotated[str, Depends(actor)]
@@ -93,14 +130,13 @@ class LabelIn(Contract):
 
 @router.get("/mode")
 def mode(user: Actor):
-    mode = os.getenv("HIRESPEC_AI_MODE", "unconfigured")
-    return {"model_mode": mode, "simulated": mode == "offline_demo", "actor": user,
-            "notice": "真实 PostgreSQL 持久化；模型回复为预置模拟数据，未验证真实模型能力。"}
+    return {"model_mode": ai_model_mode(), "simulated": False, "actor": user,
+            "notice": "模型复用主接口 LLM_* 配置；未配置 LLM_API_KEY 时 AI 端点返回 503。"}
 
 
 @router.post("/jobs", status_code=201)
 def create_job(body: JobIn, user: Actor):
-    return RecruitingStore().create_job(body.title, body.requirement, user, os.getenv("HIRESPEC_AI_MODE", "unconfigured"))
+    return RecruitingStore().create_job(body.title, body.requirement, user, ai_model_mode())
 
 
 @router.get("/jobs/{job_id}")

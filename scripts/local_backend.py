@@ -4,7 +4,6 @@ import argparse
 import getpass
 import json
 import os
-import secrets
 from pathlib import Path
 import socket
 import sys
@@ -17,7 +16,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="检查数据库并启动本地后端（密码不落盘）")
     parser.add_argument("--check-only", action="store_true", help="仅验证数据库，不启动服务")
     parser.add_argument("--port", type=int, default=8000, help="本地 HTTP 端口")
-    parser.add_argument("--recruiting-demo", action="store_true", help="明确启用模拟 AI + 真实数据库招聘接口")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("HTTP 端口必须在 1 到 65535 之间")
@@ -60,16 +58,6 @@ def main() -> int:
             return 0
 
         import uvicorn
-        if args.recruiting_demo:
-            os.environ["HIRESPEC_AI_MODE"] = "offline_demo"
-            if not os.getenv("HIRESPEC_API_TOKEN"):
-                os.environ["HIRESPEC_API_TOKEN"] = secrets.token_urlsafe(24)
-                print("本次本地访问令牌（不是数据库密码，仅本次启动有效）：")
-                print(os.environ["HIRESPEC_API_TOKEN"])
-            else:
-                print("使用已配置的 HIRESPEC_API_TOKEN。")
-            print("模型回复明确为模拟；招聘记录会写入真实 xks 数据库。")
-            print("在 /docs 点击 Authorize，填写上面的本地访问令牌。")
         print(f"本地接口文档：http://127.0.0.1:{args.port}/docs")
         print(f"数据库检查：http://127.0.0.1:{args.port}/health/database")
         print("此窗口保持打开；按 Ctrl+C 停止。")

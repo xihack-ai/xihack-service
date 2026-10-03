@@ -1,15 +1,20 @@
-"""Restricted, explicitly offline fixture client; never a real model substitute."""
+"""Test-only offline fixture client and synthetic data.
+
+Production code must never import this module; it lives in tests/ as a test double.
+"""
 
 from __future__ import annotations
 
 import json
 from collections import Counter
-from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
-from .models import Candidate, Category, CriterionBody
-from .prompts import PROMPTS
-from .safety import rule_review
+from hirespec_loop.models import Candidate, Category, CriterionBody
+from hirespec_loop.prompts import PROMPTS
+from hirespec_loop.safety import rule_review
+
+DATA_FILE = Path(__file__).resolve().parent / "data" / "synthetic_candidates.json"
 
 
 REQUIREMENT = "我要一个能独立负责 AI 产品的高级后端"
@@ -55,7 +60,7 @@ def ownership_body() -> CriterionBody:
 
 
 def load_fixture_data() -> dict[str, Any]:
-    return json.loads(files("hirespec_loop").joinpath("data/synthetic_candidates.json").read_text(encoding="utf-8"))
+    return json.loads(DATA_FILE.read_text(encoding="utf-8"))
 
 
 def load_candidates() -> tuple[Candidate, ...]:

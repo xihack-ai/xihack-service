@@ -17,6 +17,7 @@ from hirespec_loop.models import ProposalStatus
 def isolate_auth(monkeypatch):
     monkeypatch.delenv("HIRESPEC_API_TOKEN", raising=False)
     monkeypatch.delenv("HIRESPEC_AI_MODE", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)  # app.main 的 load_dotenv 会把它装回来
     recruiting_api.get_ai.cache_clear()
     yield
     recruiting_api.get_ai.cache_clear()
@@ -31,13 +32,14 @@ def test_disabled_routes_and_missing_token_are_not_public(monkeypatch):
     assert client.get("/api/hiring/mode", headers={"Authorization": "Bearer wrong"}).status_code == 401
 
 
-def test_mode_explicitly_reports_simulated_ai_and_actor_is_server_bound(monkeypatch):
+def test_mode_reports_unconfigured_ai_and_actor_is_server_bound(monkeypatch):
     monkeypatch.setenv("HIRESPEC_API_TOKEN", "local-test-token")
-    monkeypatch.setenv("HIRESPEC_AI_MODE", "offline_demo")
+    monkeypatch.setenv("HIRESPEC_AI_MODE", "offline_demo")  # 环境变量不再能激活任何模拟模式
     monkeypatch.setenv("HIRESPEC_LOCAL_ACTOR", "manager-test")
     response = TestClient(app).get("/api/hiring/mode", headers={"Authorization": "Bearer local-test-token", "X-Reviewer-ID": "forged"})
     assert response.status_code == 200
-    assert response.json()["simulated"] is True
+    assert response.json()["simulated"] is False
+    assert response.json()["model_mode"] == "unconfigured"
     assert response.json()["actor"] == "manager-test"
     assert "local-test-token" not in response.text
 

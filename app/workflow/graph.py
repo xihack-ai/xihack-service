@@ -62,11 +62,14 @@ def build_graph(checkpointer=None):
     g.add_node("selective_reeval", _traced("selective_reeval", _selective_reeval))
 
     g.add_conditional_edges(START, nodes.entry_route,
-                            {"clarify": "clarify", "interpret": "interpret_feedback"})
+                            {"clarify": "clarify", "interpret": "interpret_feedback",
+                             "evaluate": "extract_evidence"})
     g.add_edge("clarify", "generate_spec")
     g.add_conditional_edges("generate_spec", nodes.route_after_spec,
                             {"confirm": "spec_confirmation", "extract": "extract_evidence"})
-    g.add_edge("spec_confirmation", "extract_evidence")
+    g.add_conditional_edges("spec_confirmation",
+                            lambda state: "end" if state.get("defer_initial_evaluation") else "extract",
+                            {"end": END, "extract": "extract_evidence"})
     g.add_edge("extract_evidence", "validate_evidence")
     g.add_edge("validate_evidence", "evaluate")
     g.add_edge("evaluate", END)

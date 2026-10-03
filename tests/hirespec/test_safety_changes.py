@@ -5,7 +5,7 @@ import pytest
 
 from hirespec_loop.changes import preview_changes
 from hirespec_loop.errors import ClarificationRequired, InputError, ModelTaskError, PolicyError, StaleProposalError
-from hirespec_loop.fixtures import seed_bodies
+from demo_fixtures import seed_bodies
 from hirespec_loop.models import Category, Criterion, CriterionBody, ProposedChange, SpecDraft, SpecVersion
 from hirespec_loop.safety import rule_review
 from hirespec_loop.service import HireSpecAI

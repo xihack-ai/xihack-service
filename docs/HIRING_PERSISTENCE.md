@@ -12,31 +12,18 @@
 
 ```powershell
 cd "C:\Users\lenovo\Documents\Codex\2026-09-29\new-chat\xihack-service"
-.\.venv\Scripts\python.exe scripts\local_backend.py --recruiting-demo
+.\.venv\Scripts\python.exe scripts\local_backend.py
 ```
 
-输入 PostgreSQL 数据库密码。终端会打印**本次本地访问令牌**，它不是数据库密码；在 http://127.0.0.1:8000/docs 点 Authorize，填入令牌即可调用 `/api/hiring` 下的接口。无需自己输入 `Bearer` 前缀。
+输入 PostgreSQL 数据库密码。非 AI 的持久化接口（建职位/存简历/驳回/标注等）需先设置环境变量 `HIRESPEC_API_TOKEN` 才会启用；在 http://127.0.0.1:8000/docs 点 Authorize 填入该令牌即可调用 `/api/hiring` 下的接口。无需自己输入 `Bearer` 前缀。**AI 端点（澄清/草稿/反馈提案/重算等）复用 `.env` 的 `LLM_*` 配置接真实模型；未配置 `LLM_API_KEY` 时返回 503 AI_NOT_CONFIGURED。模拟演示模式已移除。**
 
 默认账号为 `manager-local`，由服务器环境 `HIRESPEC_LOCAL_ACTOR` 绑定，不能通过请求正文或自报 reviewer_id 冒充其他账号。创建的职位有归属标记，当前账号只能操作自身通过此模块创建的职位，旧系统职位不会被此模块修改。
 
 这是绑定本机 127.0.0.1 的开发认证，**还不是部署用的用户登录与组织权限系统**。正式多人部署应替换 `actor` 依赖，将令牌验证结果映射到真实用户和职位权限。
 
-## 一条命令运行完整数据库演示
+## 演示模式已移除
 
-```powershell
-.\.venv\Scripts\python.exe scripts\recruiting_demo.py
-```
-
-隐藏输入数据库密码后，程序创建一个独立的 `[HireSpec 模拟样本] 数据库闭环` 职位，导入 6 份模拟简历，并执行：
-
-1. 澄清 → 草稿 → 人工批准 v1 → 保存 24 条单标准评估。
-2. 保存拒绝反馈 → 保存待审批提议；此时仍为 v1。
-3. 批准修改 C02 → 保存 v2 → 6 条重评、18 条缓存复用。
-4. 用新实例读取数据库，验证重新启动后状态仍存在，重复批准不创建 v3。
-5. 提交敏感反馈，保存 BLOCKED 提议，禁止批准。
-6. 写入一条明确为模拟的校准集标注，用于验证 `candidate_labels` 写入。不是经理真实标签，也不用于宣称模型效果。
-
-演示保留这个独立职位供复查；不会删除或覆盖团队已有职位。候选人 UUID 随机生成，实际排序由档位、满足的加分项数量、稳定 UUID 决定，不写死排名移动。
+原先的 `scripts/recruiting_demo.py` 与 `OfflineDemoClient` 模拟 AI 演示链已删除；离线测试如需同样的脚本化假模型，使用 `tests/demo_fixtures.py`（仅测试层）。招聘闭环的真实模型接入方式见 `HIRING_INTEGRATION.md`。
 
 ## 前端接口顺序
 

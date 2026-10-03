@@ -68,6 +68,33 @@ def load_job(job_id: str) -> dict | None:
         return {**job, "candidates": list(cur.fetchall())}
 
 
+def add_candidates(job_id: str, candidates: list[dict]) -> list[dict]:
+    """Store an import in one transaction; return canonical IDs on text duplicates."""
+    if not db.is_configured():
+        return candidates
+    result = []
+    with db.connect() as conn, conn.transaction(), conn.cursor() as cur:
+        for c in candidates:
+            cur.execute(
+                "insert into candidates(id,job_id,name,resume_text,resume_hash,source_file,"
+                "original_filename,mime_type,file_size,parse_status,parser_version,parsed_at) "
+                "values (%s,%s,%s,%s,%s,%s,%s,%s,%s,'COMPLETED',%s,now()) "
+                "on conflict (job_id,resume_hash) do nothing",
+                (c["id"], job_id, c["name"], c["resume_text"], c["resume_hash"],
+                 c["source_file"], c["original_filename"], c["mime_type"],
+                 c["file_size"], c["parser_version"]))
+            cur.execute("select id,name,resume_text,resume_hash,source_file,parser_version "
+                        "from candidates where job_id=%s and resume_hash=%s",
+                        (job_id, c["resume_hash"]))
+            row = dict(cur.fetchone())
+            row["id"] = str(row["id"])
+            result.append(row)
+        cur.execute("insert into audit_events(job_id,actor,event_type,payload) "
+                    "values (%s,'hr','CANDIDATES_IMPORTED',%s)",
+                    (job_id, _j({"candidate_ids": [c["id"] for c in result]})))
+    return result
+
+
 def save_spec(job_id: str | None, version: int, criteria: list[dict],
               source_proposal: bool = False) -> None:
     if not db.is_configured() or not job_id:

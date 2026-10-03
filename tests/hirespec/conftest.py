@@ -5,7 +5,7 @@ from copy import deepcopy
 
 import pytest
 
-from hirespec_loop.fixtures import ANSWERS, REQUIREMENT, OfflineDemoClient
+from demo_fixtures import ANSWERS, REQUIREMENT, OfflineDemoClient
 from hirespec_loop.prompts import PROMPTS
 
 

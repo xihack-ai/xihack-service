@@ -14,7 +14,7 @@ python -m hirespec_loop.demo
 
 这组测试共 105 项，不需要数据库。历史知识库的全仓测试存在样本 tier `LEGEND` 与原 Schema 不一致的收集错误，招聘测试通过不代表原知识库全量测试通过。
 
-真实数据库测试另见 `HIRING_PERSISTENCE.md`；需显式启用 `HIRESPEC_RUN_DB_TESTS=1`。示例脚本 `python scripts/recruiting_demo.py` 会保留一个新的独立模拟职位，不能在生产库随意反复运行。
+真实数据库测试另见 `HIRING_PERSISTENCE.md`；需显式启用 `HIRESPEC_RUN_DB_TESTS=1`。模拟演示脚本 `scripts/recruiting_demo.py` 与 `hirespec_loop/fixtures.py` 已删除，脚本化假模型仅保留在测试层的 `tests/demo_fixtures.py`。
 
 ## 接真实模型
 
@@ -28,7 +28,7 @@ async def generate_json(system_prompt, payload, output_schema):
 
 将实现注入 `CallableJSONClient`，再构造 `HireSpecAI(client)`。`provider`、确切 `model` 版本和非敏感调用设置进入缓存身份；不要把 API key 放入 settings。模块会校验 JSON/Schema，失败修复一次；引用另经原文验证，调用失败不会变成无证据。
 
-FastAPI 的接入点是 `app.recruiting_api.get_ai` 与 `get_loop`；当前仅允许显式 `offline_demo`，替换真实模型后也要明确传入真实 `model_mode`。仅设置原知识库 `LLM_API_KEY` 不会自动启用招聘模型。
+FastAPI 的接入点是 `app.recruiting_api.get_ai` 与 `get_loop`；`get_ai` 已改为复用 `LLM_BASE_URL`/`LLM_API_KEY`/`LLM_MODEL` 的 OpenAI 兼容适配器（`CallableJSONClient`），未配置 key 时返回 503 AI_NOT_CONFIGURED。如需换供应商，替换 `get_ai` 内的 `generate_json` 实现并保持 `cache_identity` 反映真实 provider/模型版本即可。
 
 ## 接 LangGraph
 

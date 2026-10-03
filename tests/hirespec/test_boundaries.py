@@ -5,7 +5,7 @@ import pytest
 
 from hirespec_loop.cache import build_snapshot
 from hirespec_loop.errors import InputError, ModelTaskError, PolicyError
-from hirespec_loop.fixtures import ownership_body, seed_bodies
+from demo_fixtures import ownership_body, seed_bodies
 from hirespec_loop.models import Candidate, Criterion, CriterionBody, EvaluationRecord, Feedback
 
 from .conftest import ControlledClient, SAFE

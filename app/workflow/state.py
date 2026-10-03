@@ -53,6 +53,8 @@ class CalibrationState(TypedDict, total=False):
     candidates: list[dict]          # {id, name, resume_text}
     evidence: list[Evidence]
     evaluations: list[Evaluation]
+    evaluation_requested: bool    # Explicit evaluation of newly imported candidates.
+    defer_initial_evaluation: bool # File imports are evaluated via the explicit button.
 
     feedback: str                   # 外部注入:HR 反馈原文;消费后置空
     feedback_id: str | None         # 落库后的 feedback.id,供提案引用

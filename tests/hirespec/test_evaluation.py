@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from hirespec_loop.errors import InputError, ModelTaskError
 from hirespec_loop.evaluation import semantic_hash, text_hash, verify_evaluation
-from hirespec_loop.fixtures import load_candidates, ownership_body, seed_bodies
+from demo_fixtures import load_candidates, ownership_body, seed_bodies
 from hirespec_loop.models import Category, Criterion, EvaluationDraft, EvidenceDraft, SpecDraft, Verdict
 from hirespec_loop.service import HireSpecAI
 

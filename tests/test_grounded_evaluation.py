@@ -103,9 +103,10 @@ def test_live_semantic_verdict_uses_explicit_reverse_evidence(monkeypatch):
     assert nodes._score('p1', criteria, verified)['scores']['c1'] == 0
 
 
-def test_offline_never_uses_keywords_to_claim_match():
-    out = TestClient(app).post('/jobs', json={'title': '测试', 'requirement': 'Python后端',
-        'candidates': [{'name': '模拟甲', 'resume_text': 'Python项目技术栈匹配团队要求'}]}).json()
-    assert out['evidence'] == []
-    assert out['evaluations'][0]['verdict'] == '待核实'
-    assert all(v is None for v in out['evaluations'][0]['scores'].values())
+@pytest.mark.offline_llm
+def test_offline_refuses_to_invent_criteria():
+    """离线不再编造兜底标准:直接拒绝并如实报错,绝不产出虚构结果。"""
+    r = TestClient(app).post('/jobs', json={'title': '测试', 'requirement': 'Python后端',
+        'candidates': [{'name': '模拟甲', 'resume_text': 'Python项目技术栈匹配团队要求'}]})
+    assert r.status_code == 503
+    assert r.json()['detail']['code'] == 'MODEL_TASK_ERROR'

@@ -5,6 +5,7 @@ LangGraph 只在 /calibrations 下管理有状态、可暂停恢复的校准流�
 """
 
 import os
+import hashlib
 import threading
 import uuid
 from contextlib import contextmanager
@@ -13,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
+from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 import psycopg  # noqa: E402
@@ -21,11 +22,12 @@ from langgraph.types import Command  # noqa: E402
 
 from app import db, llm, store  # noqa: E402
 from app import database  # noqa: E402
+from app import resume_parser  # noqa: E402
 from app.recruiting_api import router as recruiting_router  # noqa: E402
 from app.workflow import graph as wf  # noqa: E402
 from app.workflow import nodes as wf_nodes  # noqa: E402
 from app.schemas import (ApprovalIn, CalibrationOut, FeedbackIn, HistoryOut,  # noqa: E402
-                         JobIn, SpecConfirmIn, WorkflowOut)
+                         EvaluateCandidatesIn, JobIn, SpecConfirmIn, WorkflowOut)
 from hirespec_loop.errors import HireSpecError  # noqa: E402
 
 app = FastAPI(title="xihack-service")
@@ -171,6 +173,13 @@ def _snapshot(job_id: str) -> CalibrationOut:
         criteria=criteria,
         evidence=[e for e in v.get("evidence", []) if e.get("valid")],
         evaluations=ranked,
+        candidates=[{
+            "candidate_id": c["id"], "name": c["name"],
+            "source_file": c.get("source_file"),
+            "character_count": len(c["resume_text"]),
+            "parser_version": c.get("parser_version"),
+            "evaluated": any(e["candidate_id"] == c["id"] for e in evals),
+        } for c in v.get("candidates", [])],
         tiers=tiers,
         risk_flags=v.get("risk_flags", []),
         change_proposal=v.get("change_proposal") or (payload or {}).get("proposal"),
@@ -231,6 +240,114 @@ def get_calibration(job_id: str) -> CalibrationOut:
     return _snapshot(job_id)
 
 
+@app.post("/calibrations/{job_id}/candidates/upload")
+def upload_candidates(job_id: str, files: list[UploadFile] = File(...)) -> dict:
+    """Parse locally and append candidates; no model calls and no automatic evaluation."""
+    try:
+        if not 1 <= len(files) <= resume_parser.MAX_FILES:
+            raise HTTPException(422, "每批请上传 1～50 份简历。")
+        g = wf.get_graph()
+        with _job_mutex(job_id):
+            snap = g.get_state(_config(job_id))
+            if not snap.values:
+                raise HTTPException(404, "校准流程不存在")
+            if "human_approval" in snap.next:
+                raise HTTPException(409, "请先处理待审批提案，再上传简历。")
+            if snap.next and "spec_confirmation" not in snap.next:
+                raise HTTPException(409, "有尚未完成的评估，请先重试评估再上传简历。")
+            parsed, results, total_bytes = [], [], 0
+            for file in files:
+                filename = resume_parser.safe_filename(file.filename)
+                data = file.file.read(resume_parser.MAX_FILE_BYTES + 1)
+                total_bytes += len(data)
+                if total_bytes > resume_parser.MAX_BATCH_BYTES:
+                    raise HTTPException(413, "每批文件总大小不能超过 50 MB。")
+                try:
+                    candidate = resume_parser.parse_resume(data, filename, file.content_type)
+                    parsed.append(candidate)
+                    results.append({"filename": filename, "status": "parsed",
+                                    "character_count": len(candidate["resume_text"])})
+                except resume_parser.ResumeParseError as exc:
+                    results.append({"filename": filename, "status": "failed", "error": str(exc)})
+            existing = list(snap.values.get("candidates", []))
+            by_hash = {hashlib.sha256(c["resume_text"].encode()).hexdigest(): c for c in existing}
+            # Persist only new text, preserving IDs and evaluations for duplicate uploads.
+            fresh = {}
+            for candidate in parsed:
+                if candidate["resume_hash"] not in by_hash:
+                    fresh.setdefault(candidate["resume_hash"], candidate)
+            stored = store.add_candidates(job_id, list(fresh.values())) if fresh else []
+            for candidate in stored:
+                existing.append(candidate)
+                by_hash[candidate["resume_hash"]] = candidate
+            seen = {hashlib.sha256(c["resume_text"].encode()).hexdigest()
+                    for c in snap.values.get("candidates", [])}
+            parsed_iter = iter(parsed)
+            for result in results:
+                if result["status"] == "failed":
+                    continue
+                candidate = next(parsed_iter)
+                digest = candidate["resume_hash"]
+                result.update(status="duplicate" if digest in seen else "imported",
+                              candidate_id=by_hash[digest]["id"])
+                seen.add(digest)
+            if stored:
+                # Preserve the initial approval pause; an import never approves a spec.
+                as_node = "generate_spec" if "spec_confirmation" in snap.next else "evaluate"
+                update = {"candidates": existing}
+                if "spec_confirmation" in snap.next:
+                    update["defer_initial_evaluation"] = True
+                g.update_state(_config(job_id), update, as_node=as_node)
+                if not db.is_configured() and job_id in _mem_jobs:
+                    _mem_jobs[job_id]["candidates"] = existing
+            return {"results": results, "calibration": _snapshot(job_id)}
+    finally:
+        for file in files:
+            file.file.close()
+
+
+@app.get("/calibrations/{job_id}/candidates/{candidate_id}/resume")
+def candidate_resume(job_id: str, candidate_id: str) -> dict:
+    snap = wf.get_graph().get_state(_config(job_id))
+    for candidate in snap.values.get("candidates", []):
+        if candidate["id"] == candidate_id:
+            return {"candidate_id": candidate_id, "name": candidate["name"],
+                    "source_file": candidate.get("source_file"),
+                    "resume_text": candidate["resume_text"]}
+    raise HTTPException(404, "该职位下没有此候选人。")
+
+
+@app.post("/calibrations/{job_id}/candidates/evaluate", response_model=CalibrationOut)
+def evaluate_candidates(job_id: str, body: EvaluateCandidatesIn) -> CalibrationOut:
+    """Evaluate only new candidates using the confirmed spec; retry is idempotent."""
+    g = wf.get_graph()
+    with _job_mutex(job_id):
+        snap = g.get_state(_config(job_id))
+        if not snap.values:
+            raise HTTPException(404, "校准流程不存在")
+        if "spec_confirmation" in snap.next or "human_approval" in snap.next:
+            raise HTTPException(409, "请先确认招聘标准或处理待审批提案。")
+        if not snap.values.get("criteria"):
+            raise HTTPException(409, "尚未生成招聘标准。")
+        if not llm.is_configured() or llm.replay_only():
+            raise HTTPException(503, detail={"code": "LIVE_MODEL_REQUIRED",
+                                           "message": "请在后端配置真实模型并关闭 REPLAY_ONLY 后评估简历。"})
+        known = {c["id"] for c in snap.values.get("candidates", [])}
+        if not set(body.candidate_ids) <= known:
+            raise HTTPException(422, "包含不属于该职位的候选人。")
+        evaluated = {e["candidate_id"] for e in snap.values.get("evaluations", [])}
+        pending = list(dict.fromkeys(cid for cid in body.candidate_ids if cid not in evaluated))
+        if pending:
+            # Reset an unfinished extraction from a failed request; completed results stay visible.
+            if snap.next:
+                if set(snap.next) - {"extract_evidence", "validate_evidence", "evaluate"}:
+                    raise HTTPException(409, "其他流程尚未完成，请先处理当前流程。")
+                g.update_state(_config(job_id), {"evaluation_requested": False}, as_node="evaluate")
+            g.invoke({"evaluation_requested": True, "reeval_candidates": pending,
+                      "reeval_criteria": None}, _config(job_id))
+        return _snapshot(job_id)
+
+
 @app.post("/calibrations/{job_id}/spec/confirm", response_model=CalibrationOut)
 def confirm_spec(job_id: str, body: SpecConfirmIn) -> CalibrationOut:
     """首次标准确认:按(可能编辑过的) criteria save_spec 后继续抽证/评估。
@@ -267,6 +384,8 @@ def submit_feedback(job_id: str, body: FeedbackIn) -> CalibrationOut:
                              "message": "请先确认初始标准(/spec/confirm),再提交反馈"})
         if "human_approval" in (snap.next or ()):
             raise HTTPException(409, "已有提案待审批,请先 Accept / Edit / Reject")
+        if snap.next:
+            raise HTTPException(409, "评估尚未完成，请先重试评估，再提交反馈。")
         g.invoke({"feedback": body.text, "feedback_created_by": body.created_by}, _config(job_id))
         return _snapshot(job_id)
 

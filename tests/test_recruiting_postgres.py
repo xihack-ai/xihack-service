@@ -16,7 +16,7 @@ from app.main import app
 from app.recruiting_service import PersistentLoop
 from app.recruiting_store import CONTRACT, PREFIX, JobBusy, NotFound, RecruitingStore, StoreError
 from hirespec_loop.errors import ApprovalError, ModelTaskError, PolicyError, StaleProposalError
-from hirespec_loop.fixtures import (
+from demo_fixtures import (
     ANSWERS, OWNERSHIP_FEEDBACK, PROMOTION_FEEDBACK, REQUIREMENT, VAGUE_FEEDBACK,
     OfflineDemoClient, load_candidates, ownership_body, seed_bodies,
 )

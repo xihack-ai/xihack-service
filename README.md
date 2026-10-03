@@ -11,8 +11,7 @@ Windows 本地连接招聘数据库 `xks`：见 [操作步骤](docs/DATABASE_LOC
 
 招聘闭环真实数据库读写：见 [接口与运行说明](docs/HIRING_PERSISTENCE.md)。
 模型与 LangGraph 接入边界：见 [队长集成说明](docs/HIRING_INTEGRATION.md)。
-`python scripts/local_backend.py --recruiting-demo` 启用明确模拟 AI 的持久化接口；
-`python scripts/recruiting_demo.py` 创建一个独立模拟职位并跑完审批、重算与重启恢复验证。
+招聘闭环的模拟 AI 演示模式已移除：`/api/hiring/*` 的 AI 端点复用主接口的 `LLM_*` 配置接真实模型，未配置 `LLM_API_KEY` 时返回 503。
 
 ## 快速开始
 
@@ -182,9 +181,9 @@ FastAPI 错误放在 `detail` 中，可能是字符串、包含 `code`/`message`
 
 ## 独立 PostgreSQL 招聘 API（当前前端未接入）
 
-`/api/hiring/*` 使用独立请求/响应合同，不能与 `/jobs`、`/calibrations/*` 的 ID 和流程混用。需要数据库和 `HIRESPEC_API_TOKEN`；通过 `python scripts/local_backend.py --recruiting-demo` 启用本地演示。所有请求带 `Authorization: Bearer TOKEN`，TOKEN 替换为本次启动打印的本地访问令牌，不是模型密钥。
+`/api/hiring/*` 使用独立请求/响应合同，不能与 `/jobs`、`/calibrations/*` 的 ID 和流程混用。需要数据库和 `HIRESPEC_API_TOKEN`（设置后启用非 AI 端点）。所有请求带 `Authorization: Bearer TOKEN`，TOKEN 替换为你设置的令牌，不是模型密钥。
 
-**此模块当前 `get_ai()` 只支持 `HIRESPEC_AI_MODE=offline_demo`。下文的 `LLM_*` 配置启用的是 LangGraph 主接口，不会将这一套独立模块自动切为真实模型。**
+**此模块的模拟演示模式（`offline_demo`）已移除；`get_ai()` 现复用 `LLM_BASE_URL`/`LLM_API_KEY`/`LLM_MODEL` 接真实模型，未配置 key 时返回 503。**
 
 | 方法 | 路径（共同前缀 `/api/hiring`） | 请求体/用途 |
 |---|---|---|
@@ -253,3 +252,19 @@ REPLAY_ONLY=0
 Base URL 必须带 `/v1`，代码会在其后追加 `/chat/completions`。调用的是所配置的第三方服务商，可能产生费用；招聘需求及简历相关内容可能被发送到该服务商，应先确认数据授权和隐私要求。密钥只放后端，不能使用 `NEXT_PUBLIC_*` 暴露给浏览器。
 
 修改 `.env` 后重启后端。`workflow.model_mode=live` 表示已配置密钥且未开启 replay，并不保证每次请求都成功调用模型（可能命中缓存或失败回退）；实际成功调用需结合模型响应和后端日志确认。`.env` 与 `.cache/` 已被 `.gitignore` 忽略。
+
+## 批量上传简历
+
+候选人页支持多选或拖拽 PDF、DOC、DOCX、RTF。先创建职位，再上传；上传前后都可以确认标准。文件通过 AnyDoc 0.2.4 在后端本地转为 Markdown 文本，不启用 hosted OCR。扫描件、加密文件和损坏文件按文件提示失败，其余文件继续导入。原始文件不保留，解析文本与来源文件名保存在候选人记录和 checkpoint 中。
+
+- `POST /calibrations/{job_id}/candidates/upload`：multipart 的 `files` 字段，可重复；每批最多 50 份，每份 10 MiB，总计 50 MiB。返回逐文件 `imported` / `duplicate` / `failed` 及最新 `calibration`。同职位按解析文本哈希去重。
+- `GET /calibrations/{job_id}/candidates/{candidate_id}/resume`：读取该职位候选人的解析原文。
+- `POST /calibrations/{job_id}/candidates/evaluate`：`{"candidate_ids":["..."]}`；使用已确认的标准，只评估尚未完成的候选人。需要真实模型，离线模式返回 `503 LIVE_MODEL_REQUIRED`。标准或提案待确认时返回 409。
+- `CalibrationOut.candidates` 返回候选人元数据与 `evaluated`，区分已导入和已评估。
+
+前端逐文件上传、逐候选人评估，显示真实进度；失败后保留已完成结果，重试只处理未完成项。确认标准前上传文件不会调用模型；确认后由用户点击「开始评估」。旧的创建职位时直接提交文本简历流程保持兼容。
+
+```bash
+.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m pytest -q tests/test_candidate_upload.py
+```

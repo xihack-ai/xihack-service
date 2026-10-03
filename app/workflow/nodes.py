@@ -27,12 +27,6 @@ FORBIDDEN_TERMS = [
     "年轻", "985", "211", "第一学历", "学校层次",
 ]
 
-_FALLBACK_CRITERIA: list[Criterion] = [
-    {"id": "c1", "type": "MUST_HAVE", "text": "相关项目经验", "weight": 3},
-    {"id": "c2", "type": "MUST_HAVE", "text": "技术栈匹配", "weight": 2},
-    {"id": "c3", "type": "NICE_TO_HAVE", "text": "沟通协作能力", "weight": 1},
-]
-
 _TYPES = ("MUST_HAVE", "NICE_TO_HAVE", "VETO")
 
 
@@ -231,7 +225,7 @@ def clarify(state: dict) -> dict:
 
 
 def generate_spec(state: dict) -> dict:
-    """生成招聘标准 v1;离线回退为三条通用标准。"""
+    """生成招聘标准 v1;只依据真实模型对需求的提炼,绝不回退到虚构标准。"""
     msg = [
         {"role": "system", "content": (
             _BASE_PROMPT + "从经理原话中提取可独立判断的标准，每条只描述一个条件。"
@@ -246,18 +240,18 @@ def generate_spec(state: dict) -> dict:
         )},
         {"role": "user", "content": state.get("requirement", "")},
     ]
-    fallback = {"criteria": _FALLBACK_CRITERIA}
-    data = llm.chat_json(msg, fallback=fallback)
-    live = llm.is_configured() and not llm.replay_only()
+    if not (llm.is_configured() and not llm.replay_only()):
+        raise ModelTaskError("未配置真实模型或处于回放模式，无法生成招聘标准；请配置 LLM_API_KEY 并关闭 REPLAY_ONLY 后重试。")
+    data = llm.chat_json(msg, fallback={})
     raw = [c for c in data.get("criteria", []) if isinstance(c, dict) and c.get("text")
-           and (not live or grounded_standard(c, state.get("requirement", "")))]
-    if live and not raw:
+           and grounded_standard(c, state.get("requirement", ""))]
+    if not raw:
         raise ModelTaskError("模型未生成有需求原文支持的标准，请明确岗位要求后重试。")
     criteria: list[Criterion] = [
         {"id": str(c.get("id") or f"c{i+1}"), "type": _norm_type(c.get("type")),
          "text": str(c["text"]), "weight": int(c.get("weight", 2))}
         for i, c in enumerate(raw)
-    ] or [dict(c) for c in _FALLBACK_CRITERIA]
+    ]
 
     version = int(state.get("spec_version") or 1)
     store.save_spec(state.get("job_id"), version, criteria)
@@ -338,7 +332,8 @@ def evaluate(state: dict) -> dict:
              for c in cands if c["id"] in scope]
     result = kept + fresh
     store.save_evaluations(state.get("job_id"), state.get("spec_version"), result)
-    return {"evaluations": result, "reeval_candidates": [], "reeval_criteria": None}
+    return {"evaluations": result, "reeval_candidates": [], "reeval_criteria": None,
+            "evaluation_requested": False}
 
 
 def interpret_feedback(state: dict) -> dict:
@@ -492,6 +487,8 @@ def human_approval(state: dict) -> dict:
         if not affected:  # 仅改类型/权重:全员重排,不重新抽证
             affected = {c["id"] for c in state.get("candidates", [])}
 
+    # Imported but unevaluated candidates stay pending until explicitly evaluated.
+    affected &= {e["candidate_id"] for e in state.get("evaluations", [])}
     nxt_version = version + 1
     store.decide_proposal(job_id, decision, status="APPROVED")
     store.save_spec(job_id, nxt_version, new_criteria, source_proposal=True)
@@ -515,6 +512,8 @@ def route_after_approval(state: dict) -> str:
 
 def entry_route(state: dict) -> str:
     """图入口:带 feedback 且已有标准 → 走反馈分支;否则从澄清开始。"""
+    if state.get("evaluation_requested") and state.get("criteria"):
+        return "evaluate"
     if state.get("feedback") and state.get("criteria"):
         return "interpret"
     return "clarify"

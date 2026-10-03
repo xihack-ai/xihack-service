@@ -1,7 +1,7 @@
 """分步校准流程回归:首次标准确认关卡、interrupt/resume、快照恢复、
 风险编辑、remove 语义、同 ID 文本变动重抽、workflow.history。
 
-全程离线(REPLAY_ONLY + 内存 checkpointer,见 conftest.py)。
+默认使用 conftest 里的显式假模型替身 + 内存 checkpointer。
 """
 
 from fastapi.testclient import TestClient
@@ -58,7 +58,7 @@ def test_default_job_unchanged_compat() -> None:
     assert out["status"] == "EVALUATED"
     assert out["workflow"]["waiting_for"] is None
     assert out["workflow"]["next_nodes"] == []
-    assert out["workflow"]["model_mode"] == "offline_fallback"
+    assert out["workflow"]["model_mode"] == "live"
     assert out["workflow"]["checkpointer"] == "memory"
     assert out["evaluations"]
 
@@ -144,7 +144,7 @@ def test_snapshot_recovery_from_checkpoint() -> None:
                 snap["workflow"]["completed_nodes"])
     assert snap["workflow"]["history"] and all(
         isinstance(h, dict) and h.get("node") for h in snap["workflow"]["history"])
-    # 澄清信息透传给前端(离线回退为需求原文)
+    # 澄清信息透传给前端
     assert snap["clarified_requirement"]
     assert isinstance(snap["clarification_questions"], list)
 
