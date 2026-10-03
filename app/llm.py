@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-CACHE_FILE = Path(__file__).resolve().parent.parent / ".cache" / "llm_cache.json"
+CACHE_FILE = Path(os.getenv("LLM_CACHE_FILE", str(Path(__file__).resolve().parent.parent / ".cache" / "llm_cache.json")))
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
 

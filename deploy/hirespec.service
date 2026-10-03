@@ -9,12 +9,16 @@ User=hirespec
 Group=hirespec
 WorkingDirectory=/var/lib/hirespec
 Environment=PGHOST=127.0.0.1 PGPORT=5432 PGDATABASE=xks PGUSER=postgres
-Environment=REPLAY_ONLY=1 PYTHONUNBUFFERED=1
+Environment=REPLAY_ONLY=0 PYTHONUNBUFFERED=1
+Environment=LLM_BASE_URL=https://api.deepseek.com LLM_MODEL=deepseek-flash
+Environment=LLM_CACHE_FILE=/var/lib/hirespec/llm_cache.json
 LoadCredentialEncrypted=pgpassword:/etc/credstore.encrypted/hirespec.pgpassword
+LoadCredentialEncrypted=llmapikey:/etc/credstore.encrypted/hirespec.llmapikey
 ExecStart=/opt/hirespec/current/venv/bin/python /opt/hirespec/current/backend/deploy/launch.py
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=yes
+UMask=0077
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
