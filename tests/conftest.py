@@ -17,3 +17,27 @@ def _fresh_graph():
     wf.reset_for_tests()
     yield
     wf.reset_for_tests()
+
+
+@pytest.fixture
+def labelled_calibration_evidence(monkeypatch):
+    """Explicit labelled synthetic evidence for graph/ranking tests, not a production fallback."""
+    from app.workflow import nodes
+    labelled = {
+        "相关项目经验": {"张三": "主导过 Python Web 项目"},
+        "技术栈匹配": {"张三": "技术栈匹配团队要求"},
+        "后端项目经验": {"张三": "主导过 Python Web 项目"},
+        "分布式系统设计": {"张三": "参与分布式系统设计"},
+        "更看重分布式系统经验": {"张三": "参与分布式系统设计"},
+        "更看重分布式系统设计": {"张三": "参与分布式系统设计"},
+        "仅前端经验": {"李四": "仅有前端经验"},
+    }
+    def extract(cand, criteria):
+        result = []
+        for criterion in criteria:
+            quote = labelled.get(criterion['text'], {}).get(cand['name'])
+            if quote and quote in cand['resume_text']:
+                result.append({'candidate_id': cand['id'], 'criterion_id': criterion['id'],
+                               'quote': quote, 'stance': 'support', 'valid': False})
+        return result
+    monkeypatch.setattr(nodes, '_extract_for_candidate', extract)

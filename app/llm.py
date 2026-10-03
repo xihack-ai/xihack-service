@@ -12,6 +12,7 @@ import os
 import re
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 
@@ -28,8 +29,10 @@ def replay_only() -> bool:
     return os.getenv("REPLAY_ONLY", "0") == "1"
 
 
-def _cache_key(model: str, messages: list[dict]) -> str:
-    payload = json.dumps({"model": model, "messages": messages}, ensure_ascii=False, sort_keys=True)
+def _cache_key(model: str, messages: list[dict], temperature: float = 0.3) -> str:
+    payload = json.dumps({"evaluator_version": "grounded-v2", "base": os.getenv("LLM_BASE_URL"),
+                          "model": model, "messages": messages, "temperature": temperature},
+                         ensure_ascii=False, sort_keys=True)
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
@@ -51,7 +54,7 @@ def _cache_write(cache: dict) -> None:
 def chat(messages: list[dict], temperature: float = 0.3, timeout: float = 30, retries: int = 2) -> str | None:
     """返回模型文本;离线/失败返回 None(由调用方 fallback)。"""
     model = os.getenv("LLM_MODEL", "gpt-4o-mini")
-    key = _cache_key(model, messages)
+    key = _cache_key(model, messages, temperature)
 
     cached = _cache_read().get(key)
     if cached is not None:
@@ -61,13 +64,16 @@ def chat(messages: list[dict], temperature: float = 0.3, timeout: float = 30, re
         return None
 
     base = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    payload = {"model": model, "messages": messages, "temperature": temperature}
+    if urlparse(base).hostname == "api.deepseek.com":
+        payload["thinking"] = {"type": "disabled"}
     last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
             resp = httpx.post(
                 f"{base}/chat/completions",
                 headers={"Authorization": f"Bearer {os.environ['LLM_API_KEY']}"},
-                json={"model": model, "messages": messages, "temperature": temperature},
+                json=payload,
                 timeout=timeout,
             )
             resp.raise_for_status()
@@ -80,7 +86,7 @@ def chat(messages: list[dict], temperature: float = 0.3, timeout: float = 30, re
             last_err = e
             if attempt < retries:
                 time.sleep(1.5 * (attempt + 1))
-    print(f"[llm] 调用失败,使用 fallback: {last_err}")
+    print(f"[llm] 调用失败: {type(last_err).__name__}")
     return None
 
 

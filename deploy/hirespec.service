@@ -1,0 +1,24 @@
+[Unit]
+Description=HireSpec Loop API
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hirespec
+Group=hirespec
+WorkingDirectory=/var/lib/hirespec
+Environment=PGHOST=127.0.0.1 PGPORT=5432 PGDATABASE=xks PGUSER=postgres
+Environment=REPLAY_ONLY=1 PYTHONUNBUFFERED=1
+LoadCredentialEncrypted=pgpassword:/etc/credstore.encrypted/hirespec.pgpassword
+ExecStart=/opt/hirespec/current/venv/bin/python /opt/hirespec/current/backend/deploy/launch.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/hirespec
+
+[Install]
+WantedBy=multi-user.target

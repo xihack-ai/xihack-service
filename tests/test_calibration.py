@@ -1,6 +1,9 @@
 """校准全流程测试(离线):分档 → 反馈提案 → 审批(Accept/Edit/Reject)→ 局部重评 → 红线拦截。"""
 
 from fastapi.testclient import TestClient
+import pytest
+
+pytestmark = pytest.mark.usefixtures("labelled_calibration_evidence")
 
 from app.main import app
 
@@ -11,7 +14,7 @@ BODY = {
     "requirement": "负责核心服务开发,要求熟悉 Python 与高并发",
     "candidates": [
         {"name": "张三", "resume_text": "5 年后端开发\n主导过 Python Web 项目\n技术栈匹配团队要求\n参与分布式系统设计"},
-        {"name": "李四", "resume_text": "3 年前端开发\n负责 React 页面"},
+        {"name": "李四", "resume_text": "3 年前端开发\n负责 React 页面\n仅有前端经验"},
     ],
 }
 

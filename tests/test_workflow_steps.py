@@ -5,6 +5,9 @@
 """
 
 from fastapi.testclient import TestClient
+import pytest
+
+pytestmark = pytest.mark.usefixtures("labelled_calibration_evidence")
 
 from app.main import app
 

@@ -5,6 +5,7 @@ description = "xihack 后端服务(FastAPI 空骨架)"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
+    "httpx>=0.27",
     "pydantic>=2.8,<3",
     "uvicorn[standard]>=0.30",
     "python-dotenv>=1.0",
@@ -24,7 +25,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["app", "hirespec_loop"]
+packages = ["app", "app.workflow", "hirespec_loop"]
 
 [tool.setuptools.package-data]
 hirespec_loop = ["data/*.json"]
+app = ["schema.sql"]

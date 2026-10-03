@@ -6,11 +6,16 @@ create table if not exists jobs (
   title                text not null,
   requirement          text not null,
   status               text not null default 'RUNNING'
-                       check (status in ('RUNNING','EVALUATED','AWAITING_APPROVAL','FAILED')),
+                       check (status in ('RUNNING','AWAITING_SPEC_CONFIRMATION','EVALUATED','AWAITING_APPROVAL','FAILED')),
   current_spec_version int  not null default 0,
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now()
 );
+
+-- Existing installations also need the initial confirmation pause state.
+alter table jobs drop constraint if exists jobs_status_check;
+alter table jobs add constraint jobs_status_check
+  check (status in ('RUNNING','AWAITING_SPEC_CONFIRMATION','EVALUATED','AWAITING_APPROVAL','FAILED'));
 
 create table if not exists candidates (
   id          uuid primary key default gen_random_uuid(),
