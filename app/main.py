@@ -23,13 +23,13 @@ from langgraph.types import Command  # noqa: E402
 from app import db, llm, store  # noqa: E402
 from app import database  # noqa: E402
 from app import resume_parser  # noqa: E402
-from app.hireloop_rules import change_impact, judgment, proposal_criteria  # noqa: E402
+from app.hireloop_rules import change_impact, judgment, proposal_criteria, risk_assessment  # noqa: E402
 from app.recruiting_api import router as recruiting_router  # noqa: E402
 from app.workflow import graph as wf  # noqa: E402
 from app.workflow import nodes as wf_nodes  # noqa: E402
 from app.schemas import (ApprovalIn, CalibrationOut, FeedbackIn, FeedbackAnswerIn, ClarificationFeedbackIn, HistoryOut,  # noqa: E402
                          EvaluateCandidatesIn, JobIn, SpecConfirmIn, ManualSpecProposalIn,
-                         RequirementReanalyzeIn, ProposalEditIn, WorkflowOut)
+                         RequirementReanalyzeIn, RequirementClarifyIn, ProposalEditIn, WorkflowOut)
 from hirespec_loop.errors import HireSpecError  # noqa: E402
 
 app = FastAPI(title="xihack-service")
@@ -62,6 +62,8 @@ async def hiring_error(request, exc):
     code = exc.code
     status = 404 if code == "NOT_FOUND" else 503 if code == "MODEL_TASK_ERROR" else 409 if code in {"STORE_CONFLICT", "STALE_PROPOSAL", "JOB_BUSY", "APPROVAL_ERROR"} else 422
     detail = {"code": code, "message": str(exc)}
+    if code == "NEEDS_CLARIFICATION" and getattr(exc, "questions", None):
+        detail["questions"] = exc.questions
     if getattr(exc, "feedback_id", None):
         detail["feedback_id"] = exc.feedback_id
     return JSONResponse(status_code=status, content={"detail": detail})
@@ -210,6 +212,31 @@ def health() -> dict:
     return {"status": "ok", "storage": "postgres" if db.is_configured() else "memory"}
 
 
+def _answered_requirement(requirement, answers):
+    """Manager answers remain explicit source facts; never replace the original intent."""
+    if not answers:
+        return requirement.strip()
+    return requirement.strip() + "\n\n用人经理澄清问答（以下回答补充或明确原需求）：\n" + "\n".join(
+        f"问题：{item.question}\n经理回答：{item.answer}" for item in answers)
+
+
+@app.post("/requirements/clarify")
+def clarify_requirement(body: RequirementClarifyIn) -> dict:
+    """Read-only preflight: ambiguity is a question, not a failed job creation."""
+    requirement = _answered_requirement(body.requirement, body.answers)
+    review = risk_assessment([requirement])
+    if review["status"] != "SAFE":
+        return {**review, "clarified_requirement": None}
+    # On later rounds the semantic reviewer considers all answers, avoiding a
+    # second independent question generator reopening already answered questions.
+    clarification = wf_nodes.clarify({"requirement": requirement}) if not body.answers else {}
+    questions = [{"question": q, "options": []} for q in clarification.get("clarification_questions", [])]
+    return {"status": "NEEDS_CLARIFICATION" if questions else "SAFE",
+            "reason": "请用人经理逐题明确岗位要求。" if questions else "需求已可生成待确认的标准草稿。",
+            "questions": questions, "source_texts": [requirement],
+            "clarified_requirement": clarification.get("clarified_requirement", requirement)}
+
+
 @app.post("/jobs", response_model=CalibrationOut)
 def create_job(body: JobIn) -> CalibrationOut:
     """建职位 + 候选人并启动校准。
@@ -218,9 +245,16 @@ def create_job(body: JobIn) -> CalibrationOut:
     require_spec_confirmation=true 时停在 spec_confirmation,
     首次标准确认前绝不抽证据/评估。
     """
+    requirement = _answered_requirement(body.requirement, body.clarification_answers)
+    # Never trust a frontend preflight status; edited answers are reviewed again.
+    if body.clarification_answers:
+        review = risk_assessment([requirement])
+        if review["status"] != "SAFE":
+            raise HTTPException(422, detail={"code": "POLICY_BLOCKED" if review["status"] == "BLOCKED" else "NEEDS_CLARIFICATION",
+                "message": review["reason"], "questions": review["questions"]})
     job_id = str(uuid.uuid4())
     job = {
-        "id": job_id, "title": body.title, "requirement": body.requirement,
+        "id": job_id, "title": body.title, "requirement": requirement,
         "candidates": [{"id": str(uuid.uuid4()), "name": c.name, "resume_text": c.resume_text}
                        for i, c in enumerate(body.candidates)],
     }

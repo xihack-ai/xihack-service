@@ -1,0 +1,1487 @@
+{
+  "date": "2026-10-04",
+  "model_access": "个人 DeepSeek API Key；DeepSeek 官方 API",
+  "sponsor_api": "未接入",
+  "backend": {
+    "command": "python -m pytest -q --junitxml=docs/submission/test-results.xml",
+    "summary": {
+      "passed": 223,
+      "skipped": 18,
+      "failed": 0,
+      "error": 0
+    },
+    "tests": [
+      {
+        "class": "tests.hirespec.test_boundaries",
+        "name": "test_new_resume_invalidates_only_that_candidate",
+        "status": "PASSED",
+        "seconds": 0.035
+      },
+      {
+        "class": "tests.hirespec.test_boundaries",
+        "name": "test_model_cannot_smuggle_sensitive_criteria_into_a_safe_feedback",
+        "status": "PASSED",
+        "seconds": 0.029
+      },
+      {
+        "class": "tests.hirespec.test_boundaries",
+        "name": "test_unrelated_candidate_records_cannot_be_used_as_feedback_evidence",
+        "status": "PASSED",
+        "seconds": 0.023
+      },
+      {
+        "class": "tests.hirespec.test_boundaries",
+        "name": "test_unknown_change_id_is_repaired_once",
+        "status": "PASSED",
+        "seconds": 0.03
+      },
+      {
+        "class": "tests.hirespec.test_boundaries",
+        "name": "test_model_cannot_claim_blocked_while_retaining_executable_changes",
+        "status": "PASSED",
+        "seconds": 0.029
+      },
+      {
+        "class": "tests.hirespec.test_boundaries",
+        "name": "test_sensitive_direct_evaluation_is_blocked_before_model",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_fabricated_or_blank_quote_downgrades[\\u5e76\\u4e0d\\u5b58\\u5728\\u7684\\u9879\\u76ee-QUOTE_NOT_FOUND]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_fabricated_or_blank_quote_downgrades[-EMPTY_QUOTE]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_fabricated_or_blank_quote_downgrades[   -EMPTY_QUOTE]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_one_bad_quote_clears_all_evidence_and_unsupported_reason",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_offsets_preserve_unicode_and_whitespace",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_whitespace_rewriting_is_not_exact_evidence",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_missing_evidence_is_not_negative",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_conclusive_verdict_requires_quotes[SATISFIED]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_conclusive_verdict_requires_quotes[NOT_SATISFIED]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_empty_or_failed_input_is_error[]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_empty_or_failed_input_is_error[ \\n]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_empty_or_failed_input_is_error[None]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_binding_and_additional_fields_rejected",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_semantic_hash_excludes_category_and_ids_but_includes_evidence_rule",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_three_evidence_outcomes_and_payload_has_no_ranking_category",
+        "status": "PASSED",
+        "seconds": 0.006
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_invalid_json_or_wrong_id_gets_one_repair[not-json]",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_invalid_json_or_wrong_id_gets_one_repair[first1]",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_persistent_invalid_output_fails_without_fake_no_evidence",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_provider_error_is_sanitized",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_timeout_is_task_error",
+        "status": "PASSED",
+        "seconds": 0.01
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_evaluator_configuration_change_invalidates_identity",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.hirespec.test_evaluation",
+        "name": "test_prompt_injection_stays_data_in_offline_scenario",
+        "status": "PASSED",
+        "seconds": 0.005
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_ranking_rejects_inconsistent_or_mixed_matrix[spec]",
+        "status": "PASSED",
+        "seconds": 0.024
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_ranking_rejects_inconsistent_or_mixed_matrix[resume]",
+        "status": "PASSED",
+        "seconds": 0.026
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_ranking_rejects_inconsistent_or_mixed_matrix[semantic]",
+        "status": "PASSED",
+        "seconds": 0.025
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_ranking_rejects_inconsistent_or_mixed_matrix[evaluator]",
+        "status": "PASSED",
+        "seconds": 0.026
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_ranking_rejects_inconsistent_or_mixed_matrix[pair]",
+        "status": "PASSED",
+        "seconds": 0.023
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_ranking_rejects_inconsistent_or_mixed_matrix[job]",
+        "status": "PASSED",
+        "seconds": 0.024
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_ranking_rejects_inconsistent_or_mixed_matrix[offset]",
+        "status": "PASSED",
+        "seconds": 0.027
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_veto_missing_evidence_is_pending_not_safe_and_satisfied_means_triggered",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_metric_is_precision_not_recall",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_ranking_metrics",
+        "name": "test_comparison_uses_same_heldout_set_without_calibration_ids",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u8fd9\\u4e2a\\u5019\\u9009\\u4eba\\u5e74\\u9f84\\u6709\\u70b9\\u5927\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u5e74\\u9f84\\u5927\\u4e86\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u5e74\\u9f84\\u5c0f\\u4e8e35\\u5c81\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u53ea\\u898130\\u5c81\\u4ee5\\u4e0b\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u5973\\u6027\\u4e0d\\u9002\\u5408\\u8fd9\\u4e2a\\u5c97\\u4f4d\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u53ea\\u62db\\u7537\\u6027\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u53ea\\u62db\\u672a\\u5a5a\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u4ed6\\u51c6\\u5907\\u751f\\u80b2\\u4e86\\uff0c\\u4e0d\\u5408\\u9002\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u4f18\\u5148\\u672a\\u5a5a\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u53ea\\u62db\\u6c49\\u65cf\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[\\u5e74\\u9f84\\u5927\\u4e86\\uff0c\\u800c\\u4e14\\u6ca1\\u6709\\u72ec\\u7acb\\u4e0a\\u7ebf\\u7ecf\\u5386\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[Women are not suitable for this role.]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[Only hire men]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_explicit_sensitive_conditions_blocked[age under 35]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_product_audience_terms_not_blocked_by_keyword[\\u5f00\\u53d1\\u9762\\u5411\\u5973\\u6027\\u7528\\u6237\\u7684\\u4ea7\\u54c1]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_product_audience_terms_not_blocked_by_keyword[\\u7ed9\\u8001\\u5e74\\u7528\\u6237\\u5f00\\u53d1\\u670d\\u52a1]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_product_audience_terms_not_blocked_by_keyword[\\u7ba1\\u7406\\u4e09\\u4eba\\u56e2\\u961f]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_product_audience_terms_not_blocked_by_keyword[\\u8d1f\\u8d23\\u751f\\u4ea7\\u7ea7 AI \\u670d\\u52a1\\u4e0a\\u7ebf]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_category_only_preview_reuses_all_evaluations",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_add_remove_ids_are_program_allocated_and_never_reused",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_invalid_or_duplicate_change_shapes_rejected[changes0]",
+        "status": "PASSED",
+        "seconds": 0.002
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_invalid_or_duplicate_change_shapes_rejected[changes1]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_invalid_or_duplicate_change_shapes_rejected[changes2]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_invalid_or_duplicate_change_shapes_rejected[changes3]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_invalid_or_duplicate_change_shapes_rejected[changes4]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_human_sensitive_edit_rechecked_before_commit",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_semantic_review_catches_condition_not_covered_by_rules",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_unknown_safety_or_model_failure_does_not_fail_open",
+        "status": "PASSED",
+        "seconds": 0.006
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_stale_proposal_rejected_before_model_call",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_initial_draft_sensitive_conditions_are_also_blocked",
+        "status": "PASSED",
+        "seconds": 0.002
+      },
+      {
+        "class": "tests.hirespec.test_safety_changes",
+        "name": "test_benign_demographic_context_requires_and_can_pass_semantic_review",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_complete_approval_recompute_ranking_and_historical_integrity",
+        "status": "PASSED",
+        "seconds": 0.068
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_category_only_promotion_has_zero_evaluation_calls",
+        "status": "PASSED",
+        "seconds": 0.031
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_rejection_changes_neither_spec_nor_ranking",
+        "status": "PASSED",
+        "seconds": 0.029
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_concurrent_duplicate_accept_publishes_once",
+        "status": "PASSED",
+        "seconds": 0.035
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_old_pending_proposal_cannot_overwrite_new_spec",
+        "status": "PASSED",
+        "seconds": 0.038
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_blocked_feedback_cannot_be_accepted_or_edited[\\u5973\\u6027\\u4e0d\\u9002\\u5408\\u8fd9\\u4e2a\\u5c97\\u4f4d\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.025
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_blocked_feedback_cannot_be_accepted_or_edited[\\u5e74\\u9f84\\u5927\\u4e86\\uff0c\\u800c\\u4e14\\u6ca1\\u6709\\u72ec\\u7acb\\u4e0a\\u7ebf\\u7ecf\\u5386\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.024
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_blocked_feedback_cannot_be_accepted_or_edited[\\u53ea\\u62db\\u672a\\u5a5a\\u3002]",
+        "status": "PASSED",
+        "seconds": 0.023
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_vague_or_repeated_feedback_does_not_create_executable_changes[\\u611f\\u89c9\\u4e0d\\u5408\\u9002\\u3002-NEEDS_CLARIFICATION]",
+        "status": "PASSED",
+        "seconds": 0.025
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_vague_or_repeated_feedback_does_not_create_executable_changes[\\u6ca1\\u6709 Python \\u540e\\u7aef\\u4ea4\\u4ed8\\u7ecf\\u5386\\uff0c\\u73b0\\u6709\\u5fc5\\u987b\\u9879\\u4fdd\\u6301\\u4e0d\\u53d8\\u3002-NO_CHANGE]",
+        "status": "PASSED",
+        "seconds": 0.027
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_edit_is_draft_only_and_sensitive_edit_fails_without_overwrite",
+        "status": "PASSED",
+        "seconds": 0.036
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_accept_safety_transport_failure_does_not_publish",
+        "status": "PASSED",
+        "seconds": 0.036
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_recompute_failure_preserves_old_snapshot_and_retry_reuses_version",
+        "status": "PASSED",
+        "seconds": 0.039
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_initial_approval_requires_confirmation_and_authorization",
+        "status": "PASSED",
+        "seconds": 0.026
+      },
+      {
+        "class": "tests.hirespec.test_workflow",
+        "name": "test_cache_is_partitioned_by_job_and_model",
+        "status": "PASSED",
+        "seconds": 0.061
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_create_job_rule_based_tiers",
+        "status": "PASSED",
+        "seconds": 0.034
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_no_evidence_is_not_zero",
+        "status": "PASSED",
+        "seconds": 0.015
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_tradeoff_map",
+        "status": "PASSED",
+        "seconds": 0.015
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_ranking_puts_recommended_first",
+        "status": "PASSED",
+        "seconds": 0.014
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_feedback_approval_reeval",
+        "status": "PASSED",
+        "seconds": 0.032
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_approval_edit_replaces_criteria_and_triggers_veto",
+        "status": "PASSED",
+        "seconds": 0.028
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_approval_rejected_keeps_spec",
+        "status": "PASSED",
+        "seconds": 0.028
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_bias_redline_blocks_proposal",
+        "status": "PASSED",
+        "seconds": 0.02
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_bias_redline_catches_school_and_age_tone",
+        "status": "PASSED",
+        "seconds": 0.02
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_edit_without_criteria_is_422",
+        "status": "PASSED",
+        "seconds": 0.024
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_history_requires_database",
+        "status": "PASSED",
+        "seconds": 0.016
+      },
+      {
+        "class": "tests.test_calibration",
+        "name": "test_feedback_without_job_404",
+        "status": "PASSED",
+        "seconds": 0.008
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_real_anydoc_parses_rtf_and_preserves_filename",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_real_anydoc_parses_docx",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_invalid_files_are_rejected[-empty.pdf]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_invalid_files_are_rejected[fake-broken.pdf]",
+        "status": "PASSED",
+        "seconds": 0.002
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_invalid_files_are_rejected[{\\rtf1\\ansi Built and delivered Python backend services for order processing.}-unsupported.exe]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_invalid_files_are_rejected[a,b\\n1,2-renamed.pdf]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_file_size_limit",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_upload_before_confirmation_preserves_pause_and_defers_evaluation",
+        "status": "PASSED",
+        "seconds": 0.027
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_mixed_batch_duplicate_and_preview",
+        "status": "PASSED",
+        "seconds": 0.041
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_only_new_candidates_evaluated_without_regenerating_spec",
+        "status": "PASSED",
+        "seconds": 0.042
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_offline_evaluation_is_explicit_error",
+        "status": "PASSED",
+        "seconds": 0.024
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_failed_evaluation_can_retry_and_blocks_other_mutations",
+        "status": "PASSED",
+        "seconds": 0.043
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_upload_during_human_approval_is_rejected",
+        "status": "PASSED",
+        "seconds": 0.022
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_unknown_job_does_not_import",
+        "status": "PASSED",
+        "seconds": 0.008
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_max_batch_count",
+        "status": "PASSED",
+        "seconds": 0.017
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_batch_size_rejection_does_not_import_partial_candidates",
+        "status": "PASSED",
+        "seconds": 0.018
+      },
+      {
+        "class": "tests.test_candidate_upload",
+        "name": "test_spec_upgrade_keeps_unevaluated_uploads_pending",
+        "status": "PASSED",
+        "seconds": 0.036
+      },
+      {
+        "class": "tests.test_clarification_feedback",
+        "name": "test_not_required_is_recorded_without_spec_change",
+        "status": "PASSED",
+        "seconds": 0.027
+      },
+      {
+        "class": "tests.test_clarification_feedback",
+        "name": "test_required_question_waits_for_approval_and_reject_can_retry",
+        "status": "PASSED",
+        "seconds": 0.036
+      },
+      {
+        "class": "tests.test_clarification_feedback",
+        "name": "test_accepted_clarification_upgrades_spec_and_keeps_response",
+        "status": "PASSED",
+        "seconds": 0.038
+      },
+      {
+        "class": "tests.test_clarification_feedback",
+        "name": "test_clarification_validation_and_sensitive_block",
+        "status": "PASSED",
+        "seconds": 0.03
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_password_required_and_never_in_repr",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_bad_settings_return_safe_errors[PGPORT-oops]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_bad_settings_return_safe_errors[PGPORT-0]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_bad_settings_return_safe_errors[PGPORT-65536]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_bad_settings_return_safe_errors[PGCONNECT_TIMEOUT-0]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_bad_settings_return_safe_errors[PGCONNECT_TIMEOUT-31]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_bad_settings_return_safe_errors[PGHOST- ]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_read_only_check_uses_parameters_and_only_metadata",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_missing_tables_is_failure",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_driver_errors_do_not_expose_credentials[error0-DB_CONNECTION_FAILED]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_driver_errors_do_not_expose_credentials[error1-DB_AUTH_FAILED]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_database_route_unconfigured_is_503_and_old_health_still_works",
+        "status": "PASSED",
+        "seconds": 0.006
+      },
+      {
+        "class": "tests.test_database",
+        "name": "test_database_route_hides_account_and_table_names",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_ambiguous_requirements_are_questions_not_blocks[\\u5fc5\\u987b\\u6709\\u5927\\u5382\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_ambiguous_requirements_are_questions_not_blocks[\\u53ea\\u8981985]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_ambiguous_requirements_are_questions_not_blocks[\\u8fd9\\u4e2a\\u5b66\\u6821\\u6211\\u4e0d\\u559c\\u6b22]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_ambiguous_requirements_are_questions_not_blocks[\\u4e3b\\u52a8\\u6027\\u5f3a]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_ambiguous_requirements_are_questions_not_blocks[\\u9002\\u5e94\\u5feb\\u8282\\u594f]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_answer_continues_feedback_without_publishing",
+        "status": "PASSED",
+        "seconds": 0.049
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_sensitive_answer_cannot_bypass_review",
+        "status": "PASSED",
+        "seconds": 0.035
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_review_failure_is_task_error",
+        "status": "PASSED",
+        "seconds": 0.029
+      },
+      {
+        "class": "tests.test_feedback_answers",
+        "name": "test_failed_answer_can_retry_same_round",
+        "status": "PASSED",
+        "seconds": 0.043
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_seniority_does_not_authorize_five_years",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_unresolved_labels_and_waived_requirements_are_not_criteria[\\u9ad8\\u7ea7Python\\u540e\\u7aef]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_unresolved_labels_and_waived_requirements_are_not_criteria[\\u4e0d\\u8981\\u6c42\\u5e26\\u56e2\\u961f]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_unresolved_labels_and_waived_requirements_are_not_criteria[\\u65e0\\u9700\\u7ba1\\u7406\\u56e2\\u961f]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_waiver_does_not_authorize_veto_for_the_opposite",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_positive_criterion_with_waived_extra_proof_is_retained",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_explicit_years_remain_allowed[\\u81f3\\u5c115\\u5e74Python\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_explicit_years_remain_allowed[\\u81f3\\u5c11\\u4e94\\u5e74Python\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_explicit_years_remain_allowed[\\u81f3\\u5c1160\\u4e2a\\u6708Python\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_clarification_hallucination_is_not_a_source",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_program_rejects_unsupported_years_even_if_model_says_satisfied[\\u4f7f\\u7528Python\\u5f00\\u53d1\\u670d\\u52a1]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_program_rejects_unsupported_years_even_if_model_says_satisfied[3\\u5e74Python\\u5f00\\u53d1\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_explicit_long_enough_years_supported",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_calendar_years_and_unrelated_experience_do_not_prove_python_years[2020\\u5e74\\u4f7f\\u7528Python\\u5f00\\u53d1\\u9879\\u76ee]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_calendar_years_and_unrelated_experience_do_not_prove_python_years[\\u7d2f\\u8ba18\\u5e74Java\\u5f00\\u53d1\\u7ecf\\u9a8c\\u3002\\u4f7f\\u7528Python\\u5f00\\u53d1\\u63a5\\u53e3]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_one_bad_quote_invalidates_entire_verdict",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_whitespace_rewriting_is_not_literal_evidence",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_no_evidence_does_not_become_keyword_support",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_invalid_model_result_is_task_error_not_unknown",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_live_semantic_verdict_uses_explicit_reverse_evidence",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_grounded_evaluation",
+        "name": "test_offline_refuses_to_invent_criteria",
+        "status": "PASSED",
+        "seconds": 0.011
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_health",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_local_frontend_cors[http://localhost:3000]",
+        "status": "PASSED",
+        "seconds": 0.002
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_local_frontend_cors[http://localhost:3001]",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_local_frontend_cors[http://localhost:3002]",
+        "status": "PASSED",
+        "seconds": 0.002
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_local_frontend_cors[http://127.0.0.1:3000]",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_local_frontend_cors[http://127.0.0.1:3001]",
+        "status": "PASSED",
+        "seconds": 0.002
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_local_frontend_cors[http://127.0.0.1:3002]",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.test_health",
+        "name": "test_untrusted_origin_is_not_allowed",
+        "status": "PASSED",
+        "seconds": 0.002
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_update_preserves_id_zero_reextraction_and_stale_guard",
+        "status": "PASSED",
+        "seconds": 0.036
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_edit_saves_draft_without_publishing_then_accepts",
+        "status": "PASSED",
+        "seconds": 0.038
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_reject_dedup_and_ambiguous_feedback",
+        "status": "PASSED",
+        "seconds": 0.046
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_retired_id_cannot_be_reused_and_delete_reranks_everyone",
+        "status": "PASSED",
+        "seconds": 0.064
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_sensitive_feedback_and_edits_blocked[\\u53ea\\u62db\\u7537\\u6027]",
+        "status": "PASSED",
+        "seconds": 0.04
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_sensitive_feedback_and_edits_blocked[\\u5e74\\u9f84\\u4e0d\\u8d85\\u8fc735\\u5c81]",
+        "status": "PASSED",
+        "seconds": 0.037
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_sensitive_feedback_and_edits_blocked[\\u5973\\u6027\\u4e0d\\u9002\\u5408\\u8fd9\\u4e2a\\u5c97\\u4f4d]",
+        "status": "PASSED",
+        "seconds": 0.038
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_sensitive_feedback_and_edits_blocked[\\u53ea\\u62db\\u672a\\u5a5a]",
+        "status": "PASSED",
+        "seconds": 0.041
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_contextual_safety_does_not_block_product_demographics[\\u81f3\\u5c115\\u5e74\\u540e\\u7aef\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_contextual_safety_does_not_block_product_demographics[\\u6709\\u9762\\u5411\\u5973\\u6027\\u7528\\u6237\\u7684\\u4ea7\\u54c1\\u5f00\\u53d1\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_contextual_safety_does_not_block_product_demographics[\\u6709\\u5a5a\\u80b2\\u670d\\u52a1\\u7cfb\\u7edf\\u5f00\\u53d1\\u7ecf\\u9a8c]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_unknown_and_conflicting_veto_are_not_safe",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_all_must_have_missing_is_not_recommended_without_fabricating_negative_evidence",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_strict_quote_and_metrics_with_task_failure",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_replay_never_networks_and_missing_record_is_error",
+        "status": "PASSED",
+        "seconds": 0.02
+      },
+      {
+        "class": "tests.test_hireloop_integration",
+        "name": "test_optional_semantic_audit_fails_closed_and_only_audits_touched_cells",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_manual_spec_revision",
+        "name": "test_manual_revision_reject_then_approve",
+        "status": "PASSED",
+        "seconds": 0.047
+      },
+      {
+        "class": "tests.test_manual_spec_revision",
+        "name": "test_manual_revision_blocks_sensitive_edit",
+        "status": "PASSED",
+        "seconds": 0.024
+      },
+      {
+        "class": "tests.test_manual_spec_revision",
+        "name": "test_reanalyze_unapproved_intent_preserves_old_draft_and_candidates",
+        "status": "PASSED",
+        "seconds": 0.021
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_disabled_routes_and_missing_token_are_not_public",
+        "status": "PASSED",
+        "seconds": 0.009
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_mode_reports_unconfigured_ai_and_actor_is_server_bound",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_body_cannot_supply_a_different_actor",
+        "status": "PASSED",
+        "seconds": 0.003
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_no_implicit_offline_fallback",
+        "status": "PASSED",
+        "seconds": 0.005
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_database_failures_are_redacted[error0-DATABASE_TASK_FAILED]",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_database_failures_are_redacted[error1-DB_NOT_CONFIGURED]",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_proposal_and_tier_enums_map_to_database_and_verdict_contracts",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_candidate_in_accepts_resume_file_metadata_and_parser_fields",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_candidate_in_rejects_invalid_file_or_parser_fields[file_size--1]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_candidate_in_rejects_invalid_file_or_parser_fields[parse_status-UNKNOWN]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_candidate_in_rejects_invalid_file_or_parser_fields[parsed_data-value2]",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_recruiting_api",
+        "name": "test_recruitment_routes_are_registered_before_static_mount",
+        "status": "PASSED",
+        "seconds": 0.085
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_candidate_file_metadata_and_completed_parse_are_persisted",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_durable_approval_restart_and_partial_cache",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_category_only_change_reuses_every_evaluation",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_sensitive_or_vague_feedback_cannot_be_accepted[\\u5973\\u6027\\u4e0d\\u9002\\u5408\\u8fd9\\u4e2a\\u5c97\\u4f4d\\u3002-BLOCKED]",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_sensitive_or_vague_feedback_cannot_be_accepted[\\u53ea\\u62db\\u672a\\u5a5a\\u3002-BLOCKED]",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_sensitive_or_vague_feedback_cannot_be_accepted[\\u4ed6\\u6709\\u4e0a\\u7ebf\\u7ecf\\u9a8c\\uff0c\\u4f46\\u5e74\\u9f84\\u5927\\u4e86\\u3002-BLOCKED]",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_sensitive_or_vague_feedback_cannot_be_accepted[\\u611f\\u89c9\\u4e0d\\u5408\\u9002\\u3002-NEEDS_CLARIFICATION]",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_edit_is_only_draft_and_sensitive_edit_is_blocked",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_reject_is_durable_and_does_not_publish",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_wrong_owner_stale_feedback_and_foreign_candidates_are_rejected",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_job_lease_blocks_competing_mutation",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_failed_recompute_keeps_approved_spec_and_old_complete_ranking",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_feedback_survives_failed_proposal_and_can_be_retried",
+        "status": "SKIPPED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_real_http_job_read_and_label_write",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_only_one_pending_proposal_and_saved_feedback_retry",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_full_feedback_edit_accept_and_duplicate_through_http",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_snapshot_write_failure_rolls_back_whole_version_and_retains_cache",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_recruiting_postgres",
+        "name": "test_initial_spec_can_be_approved_before_resume_import",
+        "status": "SKIPPED",
+        "seconds": 0.0
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_ambiguous_requirement_returns_questions_without_creating_job",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_safe_requirement_still_asks_generated_questions",
+        "status": "PASSED",
+        "seconds": 0.004
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_answers_reach_grounded_spec_and_pause_before_evaluation",
+        "status": "PASSED",
+        "seconds": 0.015
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_sensitive_answer_is_blocked_in_preflight_and_create",
+        "status": "PASSED",
+        "seconds": 0.006
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_more_clarification_and_structured_gate_error",
+        "status": "PASSED",
+        "seconds": 0.006
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_blank_answer_rejected_and_model_failure_not_a_question",
+        "status": "PASSED",
+        "seconds": 0.005
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_company_list_and_priority_survive_draft_and_confirmation",
+        "status": "PASSED",
+        "seconds": 0.064
+      },
+      {
+        "class": "tests.test_requirement_answers",
+        "name": "test_repeated_draft_loss_is_task_failure_not_repeated_manager_question",
+        "status": "PASSED",
+        "seconds": 0.001
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_require_spec_confirmation_interrupts_before_extract",
+        "status": "PASSED",
+        "seconds": 0.013
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_default_job_unchanged_compat",
+        "status": "PASSED",
+        "seconds": 0.015
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_feedback_before_spec_confirmation_is_409",
+        "status": "PASSED",
+        "seconds": 0.018
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_confirm_with_edited_criteria_then_evaluate",
+        "status": "PASSED",
+        "seconds": 0.02
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_risky_spec_confirm_422_and_checkpoint_clean",
+        "status": "PASSED",
+        "seconds": 0.025
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_spec_confirm_validation_unique_ids_and_blank",
+        "status": "PASSED",
+        "seconds": 0.019
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_spec_confirm_not_pending_is_409",
+        "status": "PASSED",
+        "seconds": 0.022
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_snapshot_recovery_from_checkpoint",
+        "status": "PASSED",
+        "seconds": 0.023
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_feedback_interrupt_does_not_change_ranking_until_resumed",
+        "status": "PASSED",
+        "seconds": 0.04
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_feedback_resume_accept_applies_add",
+        "status": "PASSED",
+        "seconds": 0.034
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_feedback_resume_edit_risky_criteria_422_then_valid_edit_ok",
+        "status": "PASSED",
+        "seconds": 0.041
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_accept_applies_remove_semantics",
+        "status": "PASSED",
+        "seconds": 0.034
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_same_id_text_change_reextracts_evidence",
+        "status": "PASSED",
+        "seconds": 0.036
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_type_only_change_keeps_evidence_and_reranks",
+        "status": "PASSED",
+        "seconds": 0.036
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_history_endpoint_still_503_without_pg",
+        "status": "PASSED",
+        "seconds": 0.022
+      },
+      {
+        "class": "tests.test_workflow_steps",
+        "name": "test_workflow_history_covers_initial_feedback_approval",
+        "status": "PASSED",
+        "seconds": 0.036
+      }
+    ]
+  },
+  "frontend": {
+    "typescript": {
+      "command": "npx tsc --noEmit",
+      "exit_code": 0
+    },
+    "source_eslint": {
+      "command": "npx eslint app lib components --no-error-on-unmatched-pattern",
+      "exit_code": 0
+    },
+    "production_build": {
+      "command": "NEXT_PUBLIC_API_BASE=/api HIRESPEC_STATIC_EXPORT=1 npm run build",
+      "exit_code": 0
+    },
+    "full_directory_lint": {
+      "command": "npm run lint",
+      "exit_code": 1,
+      "note": "包含遗留 .next-* 导出产物的扫描；不宣称全目录通过"
+    }
+  },
+  "limitations": [
+    "自动化模型替身测试不证明真实模型准确率",
+    "18 项独立数据库环境测试跳过",
+    "真实模型验证使用模拟输入；见 TEST_RESULTS.md 部署验收记录",
+    "未完成真实经理独立标注的 Precision@5 评测"
+  ]
+}

@@ -13,11 +13,29 @@ class CandidateIn(BaseModel):
     resume_text: str = Field(min_length=1)
 
 
+class RequirementAnswerIn(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    answer: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("question", "answer")
+    @classmethod
+    def nonblank(cls, value):
+        if not value.strip():
+            raise ValueError("澄清问题及回答不得为空")
+        return value.strip()
+
+
+class RequirementClarifyIn(BaseModel):
+    requirement: str = Field(min_length=1)
+    answers: list[RequirementAnswerIn] = Field(default_factory=list, max_length=30)
+
+
 class JobIn(BaseModel):
     title: str
     requirement: str = Field(min_length=1)
     candidates: list[CandidateIn] = []
     require_spec_confirmation: bool = False
+    clarification_answers: list[RequirementAnswerIn] = Field(default_factory=list, max_length=30)
 
 
 class FeedbackIn(BaseModel):

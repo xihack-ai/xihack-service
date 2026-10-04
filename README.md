@@ -1,6 +1,10 @@
-# xihack-service
+# AI软件赛道 - HireSpec Loop - 大秦帝国
+
+赛事提交材料见 [项目说明文档](PROJECT.md)，包含架构图、Agent 工作流、部署使用说明和 [测试用例与结果](docs/submission/TEST_RESULTS.md)。模型接入使用个人 DeepSeek API Key，密钥不随代码提交。
 
 招聘标准校准服务:FastAPI 管业务,LangGraph 管有状态、可暂停恢复的校准工作流。
+
+创建职位前的逐题需求澄清与接口契约：见 [需求问答说明](docs/REQUIREMENT_CLARIFICATION.md)。模糊需求返回问题，经理回答后再生成待确认草稿。
 
 ```text
 Next.js → FastAPI → LangGraph → {LLM, PostgreSQL}

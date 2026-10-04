@@ -31,7 +31,7 @@ journalctl -u hirespec -n 50 --no-pager
 
 ## 发布版本与备份
 
-当前发布：`/opt/hirespec/releases/release-20261004-feedback`（反馈审核与经理澄清闭环）。上一版 `release-20261003-578a88d-da5169f-webfix` 保留供回滚。GitHub提交号与运行文件哈希记录在服务器 manifest.json 中；发布源码来自 `xihack-ai/xihack-service` 和 `xihack-ai/xihack-web`。
+当前发布：`/opt/hirespec/releases/release-20261004-company`（指定公司名单与类型保留，防止重复追问）。上一版 `release-20261004-requirement` 保留供回滚。此前 GitHub 提交号与运行文件哈希记录在对应版本 manifest.json 中；本次需求澄清修复从本地已验证源码部署，尚未推送到 GitHub，新版 manifest 保存逐文件 SHA-256，不冒充已有 GitHub 提交。
 `/opt/hirespec/current` 为发布链接，backend 是清洁源码安装，web 是静态生产构建。
 原始发布 `/opt/hirespec/releases/release-20261003-1791004141` 保留供回滚；新发布 manifest 记录两个仓库的提交和上传包 SHA-256。`release-20261003-578a88d-da5169f` 的后端正确，但其前端误取了旧 `out/`，不应作为前端回滚目标。
 
@@ -64,3 +64,26 @@ journalctl -u hirespec -n 50 --no-pager
 - workspace.html SHA-256：`1213ad18607bcc44c3e09293badbee078fd2a15447c1f6c530dd8a37ca8bacf6`。
 - 部署前数据库备份 `/opt/hirespec/backups/xks_before_feedback_20261004.dump`。未改表结构、未重算历史任务。
 - 接口及政策范围详见 [反馈审核说明](FEEDBACK_REVIEW.md)。
+
+## 创建前需求澄清更新
+
+2026-10-04 已上线 `release-20261004-requirement`。入口 `http://47.243.206.67/workspace?v=20261004-requirement#requirement`，团队演示账号和口令不变。新增 `/requirements/clarify`，将模糊需求作为逐题问答而不是创建失败的顶部警告；回答再次审核后生成待确认草稿。
+
+- 本地：221 passed、18 skipped，前端类型、源码 ESLint、静态生产构建通过。
+- 切换前：新版独立运行环境使用真实 DeepSeek LIVE 和真实 PostgreSQL，以模拟输入完成 3 个澄清问题→经理回答→SAFE→标准草稿暂停→人工确认→1 位候选人评估；敏感要求返回 BLOCKED。
+- 模拟验收职位：`7209ab9c-ab62-43fb-bd9d-d6ff249c4f4c`。不作为真实招聘准确率证明。
+- 切换后：认证页面与同源 API 通过；12 个页面 JS/CSS 资源读取成功；新版问答组件文案存在；新任务和旧版 v2 任务都能恢复。外部未登录请求返回 401，与演示认证一致。
+- `workspace.html` SHA-256：`fd39133c6dc4284e8327e581175c5c47515ba9f929ca9d7355080d5213f8c381e`，与 Nginx 响应一致。
+- 备份：`/opt/hirespec/backups/xks_before_requirement_20261004.dump`；未改表结构。新版本保留独立运行环境，检查失败自动回滚旧发布链接。
+- 问答契约见 [创建前需求澄清说明](REQUIREMENT_CLARIFICATION.md)。
+
+## 指定公司名单修复发布
+
+2026-10-04 已上线 `release-20261004-company`，入口 `http://47.243.206.67/workspace?v=20261004-company#requirement`。生成标准必须保留已澄清的公司范围；审核同时接收标准类型，生成模型漏写条件时先自动修复草稿。公司问题的输入示例改为公司名单。
+
+- 223 passed、18 skipped；源码检查及静态生产构建通过。
+- 新版本切换前用真实 DeepSeek LIVE / PostgreSQL 复测“腾讯 阿里 字节 美团”“优先考虑项，非必须”，连续两次需求审核 SAFE；生成完整名单加分项，确认及一位模拟候选人评估通过，敏感筛选仍 BLOCKED。
+- 模拟任务 `94c09fc5-aecb-4a5b-b369-8b94e2a0514c`。不构成真实招聘准确率证明。
+- 切换后验证 12 个 JS/CSS 资源、页面 SHA-256、同源 API、新旧任务恢复。公网未登录请求返回 401，演示账号不变。
+- workspace.html SHA-256：`56096b50fbadf79cfaf5bc00864c92c3530f6a5218e1b20b8e891a540814a8dd`。
+- 数据库备份 `/opt/hirespec/backups/xks_before_company_20261004.dump`，上一版目录保留；未修改表结构。

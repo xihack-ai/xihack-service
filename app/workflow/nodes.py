@@ -87,7 +87,8 @@ def normalize_criteria(raw: Any) -> list[Criterion]:
 
 def criteria_risk_hits(criteria: list[Criterion]) -> list[str]:
     """人工编辑(确认/审批 Edit)同样要过偏见红线。"""
-    return risk_review([c["text"] for c in criteria])
+    # Category is already a manager-facing decision, not an unanswered question.
+    return risk_review([f"标准类型：{c['type']}；标准内容：{c['text']}" for c in criteria])
 
 
 def check_criteria_risk(criteria: list[Criterion]) -> None:
@@ -231,6 +232,7 @@ def clarify(state: dict) -> dict:
     msg = [
         {"role": "system", "content": _BASE_PROMPT +
          '提炼明确要求，不把高级转换为年限，不回答经理尚未回答的问题。最多追问3个歧义。'
+         '若原文包含经理澄清问答，结合回答理解需求；不重复追问已经明确或经理声明非必要的要求。'
          '输出 JSON {"clarified": "...", "questions": ["..."]}'},
         {"role": "user", "content": state.get("requirement", "")},
     ]
@@ -257,6 +259,9 @@ def generate_spec(state: dict) -> dict:
             "标准文本不用高级/资深这类无法单独核验的职级标签，用明确职责或技能。"
             "不要求/无需某责任表示免除要求，不能变成必须项或加分项。"
             "未回答的澄清问题不是已确认要求。每条source_quote逐字引用经理原话中的来源。"
+            "经理问答中的回答是需求事实；已明确的公司名单必须完整写入对应标准，禁止缩回‘大厂经验’。"
+            "例如回答‘腾讯 阿里 字节 美团’及‘优先考虑、非必须’，标准写‘曾在腾讯、阿里、字节或美团工作’，类型NICE_TO_HAVE。"
+            "每条标准必须自包含经理已给的范围、数值和责任定义，评估器只会看到该条标准，不会看到原需求或问答。"
             "年限门槛必须在source_quote中明确出现相同数值。"
             "不得把无证据、未提及或未提供材料作为VETO触发条件。"
             '输出 JSON: {"criteria": [{"id": "c1", "type": "MUST_HAVE|NICE_TO_HAVE|VETO", '
@@ -266,20 +271,32 @@ def generate_spec(state: dict) -> dict:
     ]
     if llm.model_mode() == "offline_fallback":
         raise ModelTaskError("未配置真实模型或处于回放模式，无法生成招聘标准；请配置 LLM_API_KEY 并关闭 REPLAY_ONLY 后重试。")
-    data = llm.chat_json(msg, fallback={})
-    raw = [c for c in data.get("criteria", []) if isinstance(c, dict) and c.get("text")
-           and grounded_standard(c, state.get("requirement", ""))]
-    if not raw:
-        raise ModelTaskError("模型未生成有需求原文支持的标准，请明确岗位要求后重试。")
-    criteria: list[Criterion] = [
-        {"id": str(c.get("id") or f"c{i+1}"), "type": _norm_type(c.get("type")),
-         "text": str(c["text"]), "weight": int(c.get("weight", 2))}
-        for i, c in enumerate(raw)
-    ]
+    for attempt in range(2):
+        data = llm.chat_json(msg, fallback={})
+        raw = [c for c in data.get("criteria", []) if isinstance(c, dict) and c.get("text")
+               and grounded_standard(c, state.get("requirement", ""))]
+        if not raw:
+            raise ModelTaskError("模型未生成有需求原文支持的标准，请明确岗位要求后重试。")
+        criteria = normalize_criteria([
+            {"id": str(c.get("id") or f"c{i+1}"), "type": _norm_type(c.get("type")),
+             "text": str(c["text"]), "weight": int(c.get("weight", 2))}
+            for i, c in enumerate(raw)
+        ])
+        try:
+            check_criteria_risk(criteria)
+            break
+        except ClarificationRequired as exc:
+            # The source requirement already passed semantic review. If a model
+            # drops its definitions, repair the draft, don't reopen manager Q&A.
+            if attempt:
+                raise ModelTaskError("标准草稿未完整保留已澄清条件，自动修复失败；请重试生成。已有回答不需重复填写。") from None
+            msg = [msg[0], {"role": "user", "content": json.dumps({
+                "requirement": state.get("requirement", ""), "previous_draft": data,
+                "repair_reason": str(exc),
+                "instruction": "原需求已审核，修复草稿遗漏的名单、范围或类型；只使用经理原话和回答，不添加条件，不再追问经理。"
+            }, ensure_ascii=False)}]
 
     version = int(state.get("spec_version") or 1)
-    criteria = normalize_criteria(criteria)
-    check_criteria_risk(criteria)
     store.save_spec(state.get("job_id"), version, criteria)
     return {"criteria": criteria, "spec_version": version,
             "allocated_criterion_ids": sorted(set(state.get("allocated_criterion_ids", [])) | {c["id"] for c in criteria})}
