@@ -26,6 +26,20 @@ class FeedbackIn(BaseModel):
     created_by: str | None = None
 
 
+class FeedbackAnswerIn(BaseModel):
+    base_spec_version: int = Field(ge=1)
+    feedback_id: str
+    answers: list[str] = Field(min_length=1, max_length=3)
+    created_by: str | None = None
+
+    @field_validator("answers")
+    @classmethod
+    def nonblank_answers(cls, values):
+        if any(not value.strip() for value in values):
+            raise ValueError("请逐题填写回答")
+        return [value.strip() for value in values]
+
+
 class ClarificationFeedbackIn(BaseModel):
     question_index: int = Field(ge=0)
     category: Literal["MUST_HAVE", "NICE_TO_HAVE", "NOT_REQUIRED"]
@@ -159,6 +173,9 @@ class CalibrationOut(BaseModel):
     proposal_impact: dict[str, Any] | None = None
     feedback_status: str | None = None
     feedback_question: str | None = None
+    feedback_id: str | None = None
+    feedback_review: dict[str, Any] = Field(default_factory=dict)
+    feedback_thread: dict[str, Any] = Field(default_factory=dict)
     approval_draft: list[dict[str, Any]] | None = None
     requirement_revision: str | None = None
 

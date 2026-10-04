@@ -25,7 +25,7 @@ def body(**updates):
 
 @pytest.mark.parametrize("text", [
     "这个候选人年龄有点大。", "年龄大了。", "年龄小于35岁。", "只要30岁以下。",
-    "女性不适合这个岗位。", "只招男性。", "这个学校我不喜欢。",
+    "女性不适合这个岗位。", "只招男性。", "只招未婚。",
     "他准备生育了，不合适。", "优先未婚。", "只招汉族。",
     "年龄大了，而且没有独立上线经历。", "Women are not suitable for this role.",
     "Only hire men", "age under 35",

@@ -79,6 +79,8 @@ class CalibrationState(TypedDict, total=False):
     recomputation: dict[str, Any]
     feedback_status: str | None
     feedback_question: str | None
+    feedback_review: dict[str, Any]
+    feedback_thread: dict[str, Any]
     approval_draft: list[Criterion] | None
     requirement_revision: str | None  # Awaiting human approval; never overwrite the active intent early.
     requirement_clarification_draft: dict[str, Any] | None

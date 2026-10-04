@@ -117,7 +117,7 @@ def test_category_only_change_reuses_every_evaluation(scenario):
 
 @pytest.mark.parametrize("reason,status", [
     ("女性不适合这个岗位。", "BLOCKED"),
-    ("这个学校我不喜欢。", "BLOCKED"),
+    ("只招未婚。", "BLOCKED"),
     ("他有上线经验，但年龄大了。", "BLOCKED"),
     (VAGUE_FEEDBACK, "NEEDS_CLARIFICATION"),
 ])

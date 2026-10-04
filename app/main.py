@@ -27,7 +27,7 @@ from app.hireloop_rules import change_impact, judgment, proposal_criteria  # noq
 from app.recruiting_api import router as recruiting_router  # noqa: E402
 from app.workflow import graph as wf  # noqa: E402
 from app.workflow import nodes as wf_nodes  # noqa: E402
-from app.schemas import (ApprovalIn, CalibrationOut, FeedbackIn, ClarificationFeedbackIn, HistoryOut,  # noqa: E402
+from app.schemas import (ApprovalIn, CalibrationOut, FeedbackIn, FeedbackAnswerIn, ClarificationFeedbackIn, HistoryOut,  # noqa: E402
                          EvaluateCandidatesIn, JobIn, SpecConfirmIn, ManualSpecProposalIn,
                          RequirementReanalyzeIn, ProposalEditIn, WorkflowOut)
 from hirespec_loop.errors import HireSpecError  # noqa: E402
@@ -198,6 +198,8 @@ def _snapshot(job_id: str) -> CalibrationOut:
         recomputation=v.get("recomputation"),
         proposal_impact=change_impact(criteria, proposal_criteria(v), len(evals)) if awaiting else None,
         feedback_status=v.get("feedback_status"), feedback_question=v.get("feedback_question"),
+        feedback_id=v.get("feedback_id"), feedback_review=v.get("feedback_review") or {},
+        feedback_thread=v.get("feedback_thread") or {},
         approval_draft=v.get("approval_draft"),
         requirement_revision=v.get("requirement_revision") if awaiting else None,
     )
@@ -399,7 +401,46 @@ def submit_feedback(job_id: str, body: FeedbackIn) -> CalibrationOut:
         if snap.next:
             raise HTTPException(409, "评估尚未完成，请先重试评估，再提交反馈。")
         g.invoke({"feedback": body.text, "feedback_created_by": body.created_by,
+                  "feedback_thread": {"original": body.text, "rounds": [], "base_spec_version": snap.values.get("spec_version")},
                   "clarification_active_index": None}, _config(job_id))
+        return _snapshot(job_id)
+
+
+@app.post("/calibrations/{job_id}/feedback/answer", response_model=CalibrationOut)
+def answer_feedback(job_id: str, body: FeedbackAnswerIn) -> CalibrationOut:
+    """Continue the same feedback conversation; answers never publish a Spec."""
+    g = wf.get_graph()
+    with _job_mutex(job_id):
+        snap = g.get_state(_config(job_id))
+        state = snap.values
+        if not state:
+            raise HTTPException(404, "校准流程不存在")
+        if snap.next or state.get("feedback_status") != "NEEDS_CLARIFICATION":
+            raise HTTPException(409, "当前没有等待回答的反馈，请刷新任务")
+        if body.base_spec_version != state.get("spec_version") or body.feedback_id != state.get("feedback_id"):
+            raise HTTPException(409, "反馈或标准版本已变化，请刷新后回答")
+        questions = (state.get("feedback_review") or {}).get("questions") or [
+            {"question": state.get("feedback_question") or "请补充具体岗位要求"}]
+        if len(body.answers) != len(questions):
+            raise HTTPException(422, "请回答全部澄清问题")
+        thread = dict(state.get("feedback_thread") or {"original": state.get("feedback_raw", ""), "rounds": []})
+        rounds = list(thread.get("rounds", [])) + [{"feedback_id": body.feedback_id,
+            "questions": questions, "answers": body.answers, "answered_by": body.created_by or "manager"}]
+        thread["rounds"] = rounds
+        text = "原反馈：" + thread["original"]
+        for round_ in rounds:
+            for question, answer in zip(round_["questions"], round_["answers"]):
+                text += f"\n澄清问题：{question['question']}\n经理回答：{answer}"
+        text += "\n请根据经理回答解释原反馈，只建议明确且岗位相关的最小修改，不新增未确认要求。"
+        try:
+            g.invoke({"feedback": text, "feedback_created_by": body.created_by,
+                      "feedback_thread": thread}, _config(job_id))
+        except HireSpecError:
+            # A failed model task must leave the same unanswered round retryable.
+            g.update_state(_config(job_id), dict(state), as_node="evaluate")
+            raise
+        store.audit(job_id, body.created_by or "manager", "FEEDBACK_CLARIFIED",
+                    {"feedback_id": body.feedback_id, "round": len(rounds), "base_spec_version": body.base_spec_version})
         return _snapshot(job_id)
 
 
@@ -521,6 +562,7 @@ def submit_clarification_feedback(job_id: str, body: ClarificationFeedbackIn) ->
         feedback = (f"针对待核实问题『{response['question']}』，招聘经理澄清为{label}："
                     f"{body.answer}。请只建议对应的最小标准变更，不要自行增加年限或其他门槛。")
         g.invoke({"feedback": feedback, "feedback_created_by": body.created_by or "hr",
+                  "feedback_thread": {"original": feedback, "rounds": [], "base_spec_version": body.base_spec_version},
                   "clarification_responses": responses, "clarification_active_index": key}, _config(job_id))
         return _snapshot(job_id)
 

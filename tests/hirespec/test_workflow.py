@@ -105,7 +105,7 @@ def test_old_pending_proposal_cannot_overwrite_new_spec(client):
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("reason", ["女性不适合这个岗位。", "年龄大了，而且没有独立上线经历。", "这个学校我不喜欢。"])
+@pytest.mark.parametrize("reason", ["女性不适合这个岗位。", "年龄大了，而且没有独立上线经历。", "只招未婚。"])
 def test_blocked_feedback_cannot_be_accepted_or_edited(client, reason):
     async def scenario():
         _, session = await started(client)

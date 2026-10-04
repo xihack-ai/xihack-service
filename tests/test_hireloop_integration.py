@@ -93,7 +93,7 @@ def test_retired_id_cannot_be_reused_and_delete_reranks_everyone(confirmed):
     assert after["criteria"][-1]["id"] != retired
 
 
-@pytest.mark.parametrize("text", ["只招男性", "年龄不超过35岁", "女性不适合这个岗位", "这个学校我不喜欢"])
+@pytest.mark.parametrize("text", ["只招男性", "年龄不超过35岁", "女性不适合这个岗位", "只招未婚"])
 def test_sensitive_feedback_and_edits_blocked(confirmed, text):
     client, path, before = confirmed
     blocked = client.post(path + "/feedback", json={"text": text}).json()
