@@ -31,7 +31,7 @@ journalctl -u hirespec -n 50 --no-pager
 
 ## 发布版本与备份
 
-当前发布：`/opt/hirespec/releases/release-20261004-company`（指定公司名单与类型保留，防止重复追问）。上一版 `release-20261004-requirement` 保留供回滚。此前 GitHub 提交号与运行文件哈希记录在对应版本 manifest.json 中；本次需求澄清修复从本地已验证源码部署，尚未推送到 GitHub，新版 manifest 保存逐文件 SHA-256，不冒充已有 GitHub 提交。
+当前发布：`/opt/hirespec/releases/release-20261004-company`（指定公司名单与类型保留，防止重复追问）。上一版 `release-20261004-requirement` 保留供回滚。本次先从本地已验证源码部署，新版 manifest 保存逐文件 SHA-256；随后源码和提交材料已同步到 GitHub：后端 `9064dc6d8691c5374c24c289139966c15b5f38ec`，前端 `bbf8c95225005443df3d1b2e96e429a3f6af55de`。这些是源码同步提交，不将其虚构为部署前已经存在的提交。
 `/opt/hirespec/current` 为发布链接，backend 是清洁源码安装，web 是静态生产构建。
 原始发布 `/opt/hirespec/releases/release-20261003-1791004141` 保留供回滚；新发布 manifest 记录两个仓库的提交和上传包 SHA-256。`release-20261003-578a88d-da5169f` 的后端正确，但其前端误取了旧 `out/`，不应作为前端回滚目标。
 
@@ -87,3 +87,4 @@ journalctl -u hirespec -n 50 --no-pager
 - 切换后验证 12 个 JS/CSS 资源、页面 SHA-256、同源 API、新旧任务恢复。公网未登录请求返回 401，演示账号不变。
 - workspace.html SHA-256：`56096b50fbadf79cfaf5bc00864c92c3530f6a5218e1b20b8e891a540814a8dd`。
 - 数据库备份 `/opt/hirespec/backups/xks_before_company_20261004.dump`，上一版目录保留；未修改表结构。
+
